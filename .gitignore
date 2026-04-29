@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local runtime logs
+*.log
+monitor-agent.log
+
+# Terraform local state and provider cache
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+terraform.tfvars
+terraform.tfvars.json
+*.auto.tfvars
+*.auto.tfvars.json
+crash.log
+crash.*.log
+
+# Terraform plans should be regenerated per environment
+*.tfplan
+plan.out
+
+# Ansible local output
+ansible/*.retry
+ansible/inventory.ini
+
+# Local teaching notes requested outside version control
+learning-notes/

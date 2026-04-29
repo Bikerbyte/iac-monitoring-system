@@ -1,0 +1,16 @@
+[Unit]
+Description=IaC Monitoring Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/monitor-agent
+ExecStart=/opt/monitor-agent/venv/bin/python /opt/monitor-agent/agent.py --config /etc/monitor-agent/config.yml
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

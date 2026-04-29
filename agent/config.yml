@@ -1,0 +1,21 @@
+agent:
+  interval_seconds: 60
+  retry_count: 2
+  retry_delay_seconds: 1
+  log_file: /var/log/monitor-agent.log
+
+network:
+  dns_targets:
+    - name: graid-website
+      host: www.graid.com
+
+  tcp_targets:
+    - name: internal-gateway
+      host: 192.168.1.254
+      port: 443
+      timeout_seconds: 3
+
+    - name: external-google
+      host: google.com
+      port: 443
+      timeout_seconds: 3
