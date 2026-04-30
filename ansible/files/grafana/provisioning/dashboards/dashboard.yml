@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: iac-lab
+    orgId: 1
+    folder: IaC Monitoring Lab
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

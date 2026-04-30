@@ -8,6 +8,7 @@
     agent_config_dir: /etc/monitor-agent
     agent_venv_dir: /opt/monitor-agent/venv
     agent_log_file: /var/log/monitor-agent.log
+    node_exporter_image: quay.io/prometheus/node-exporter:v1.8.2
 
   tasks:
     - name: Install OS packages for Python agent
@@ -17,6 +18,18 @@
           - python3-pip
           - python3-venv
         state: present
+
+    - name: Install Docker runtime for exporter container
+      ansible.builtin.package:
+        name:
+          - docker.io
+        state: present
+
+    - name: Enable and start Docker
+      ansible.builtin.service:
+        name: docker
+        enabled: true
+        state: started
 
     - name: Create agent application directory
       ansible.builtin.file:
@@ -94,6 +107,29 @@
         state: started
         daemon_reload: true
 
+    - name: Check node_exporter container state
+      ansible.builtin.shell: |
+        set -o pipefail
+        docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' node-exporter 2>/dev/null || true
+      args:
+        executable: /bin/bash
+      register: node_exporter_state
+      changed_when: false
+
+    - name: Start node_exporter container
+      ansible.builtin.shell: |
+        docker rm -f node-exporter >/dev/null 2>&1 || true
+        docker run -d \
+          --name node-exporter \
+          --restart unless-stopped \
+          --pid host \
+          -p 9100:9100 \
+          -v /:/host:ro,rslave \
+          "{{ node_exporter_image }}" \
+          --path.rootfs=/host
+      when: node_exporter_state.stdout != "true"
+      changed_when: true
+
   handlers:
     - name: Reload systemd
       ansible.builtin.systemd:
@@ -103,3 +139,152 @@
       ansible.builtin.systemd:
         name: monitor-agent
         state: restarted
+
+- name: Deploy Prometheus and Grafana stack
+  hosts: monitoring_stack
+  become: true
+
+  vars:
+    monitoring_stack_dir: /opt/iac-monitoring-stack
+    prometheus_image: prom/prometheus:v2.54.1
+    grafana_image: grafana/grafana:11.2.0
+    grafana_admin_user: admin
+    grafana_admin_password: admin
+
+  tasks:
+    - name: Create monitoring stack directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - "{{ monitoring_stack_dir }}"
+        - "{{ monitoring_stack_dir }}/grafana"
+        - "{{ monitoring_stack_dir }}/grafana/provisioning"
+        - "{{ monitoring_stack_dir }}/grafana/provisioning/datasources"
+        - "{{ monitoring_stack_dir }}/grafana/provisioning/dashboards"
+        - "{{ monitoring_stack_dir }}/grafana/dashboards"
+
+    - name: Deploy Prometheus scrape config
+      ansible.builtin.template:
+        src: templates/prometheus.yml.j2
+        dest: "{{ monitoring_stack_dir }}/prometheus.yml"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Prometheus
+
+    - name: Deploy Grafana Prometheus datasource
+      ansible.builtin.copy:
+        src: files/grafana/provisioning/datasources/prometheus.yml
+        dest: "{{ monitoring_stack_dir }}/grafana/provisioning/datasources/prometheus.yml"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Grafana
+
+    - name: Deploy Grafana dashboard provider
+      ansible.builtin.copy:
+        src: files/grafana/provisioning/dashboards/dashboard.yml
+        dest: "{{ monitoring_stack_dir }}/grafana/provisioning/dashboards/dashboard.yml"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Grafana
+
+    - name: Deploy Grafana lab dashboard
+      ansible.builtin.copy:
+        src: files/grafana/dashboards/iac-lab-overview.json
+        dest: "{{ monitoring_stack_dir }}/grafana/dashboards/iac-lab-overview.json"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Grafana
+
+    - name: Ensure monitoring Docker network exists
+      ansible.builtin.shell: |
+        docker network inspect iac-monitoring >/dev/null 2>&1 || docker network create iac-monitoring
+      changed_when: false
+
+    - name: Check Prometheus container state
+      ansible.builtin.shell: |
+        set -o pipefail
+        docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' prometheus 2>/dev/null || true
+      args:
+        executable: /bin/bash
+      register: prometheus_state
+      changed_when: false
+
+    - name: Start Prometheus container
+      ansible.builtin.shell: |
+        docker rm -f prometheus >/dev/null 2>&1 || true
+        docker run -d \
+          --name prometheus \
+          --restart unless-stopped \
+          --network iac-monitoring \
+          -p 9090:9090 \
+          -v "{{ monitoring_stack_dir }}/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+          "{{ prometheus_image }}" \
+          --config.file=/etc/prometheus/prometheus.yml \
+          --storage.tsdb.retention.time=7d
+      when: prometheus_state.stdout != "true"
+      changed_when: true
+
+    - name: Check Grafana container state
+      ansible.builtin.shell: |
+        set -o pipefail
+        docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' grafana 2>/dev/null || true
+      args:
+        executable: /bin/bash
+      register: grafana_state
+      changed_when: false
+
+    - name: Start Grafana container
+      ansible.builtin.shell: |
+        docker rm -f grafana >/dev/null 2>&1 || true
+        docker run -d \
+          --name grafana \
+          --restart unless-stopped \
+          --network iac-monitoring \
+          -p 3000:3000 \
+          -e GF_SECURITY_ADMIN_USER="{{ grafana_admin_user }}" \
+          -e GF_SECURITY_ADMIN_PASSWORD="{{ grafana_admin_password }}" \
+          -e GF_USERS_ALLOW_SIGN_UP=false \
+          -v "{{ monitoring_stack_dir }}/grafana/provisioning:/etc/grafana/provisioning:ro" \
+          -v "{{ monitoring_stack_dir }}/grafana/dashboards:/var/lib/grafana/dashboards:ro" \
+          "{{ grafana_image }}"
+      when: grafana_state.stdout != "true"
+      changed_when: true
+
+  handlers:
+    - name: Restart Prometheus
+      ansible.builtin.shell: |
+        docker rm -f prometheus >/dev/null 2>&1 || true
+        docker run -d \
+          --name prometheus \
+          --restart unless-stopped \
+          --network iac-monitoring \
+          -p 9090:9090 \
+          -v "{{ monitoring_stack_dir }}/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+          "{{ prometheus_image }}" \
+          --config.file=/etc/prometheus/prometheus.yml \
+          --storage.tsdb.retention.time=7d
+      changed_when: true
+
+    - name: Restart Grafana
+      ansible.builtin.shell: |
+        docker rm -f grafana >/dev/null 2>&1 || true
+        docker run -d \
+          --name grafana \
+          --restart unless-stopped \
+          --network iac-monitoring \
+          -p 3000:3000 \
+          -e GF_SECURITY_ADMIN_USER="{{ grafana_admin_user }}" \
+          -e GF_SECURITY_ADMIN_PASSWORD="{{ grafana_admin_password }}" \
+          -e GF_USERS_ALLOW_SIGN_UP=false \
+          -v "{{ monitoring_stack_dir }}/grafana/provisioning:/etc/grafana/provisioning:ro" \
+          -v "{{ monitoring_stack_dir }}/grafana/dashboards:/var/lib/grafana/dashboards:ro" \
+          "{{ grafana_image }}"
+      changed_when: true
