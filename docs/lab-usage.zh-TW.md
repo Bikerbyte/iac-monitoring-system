@@ -9,6 +9,28 @@
 
 建議先從 Docker simulation mode 開始，因為它最容易重複練習，也最適合展示 IaC 流程。
 
+## 開始前確認位置
+
+以下指令都假設你在專案根目錄執行，也就是看得到 `docker-lab/`、`terraform/`、`ansible/` 的那一層。
+
+如果你的終端機目前在外層資料夾，請先進入專案：
+
+```bash
+cd iac-monitoring-system
+```
+
+確認位置：
+
+```bash
+ls
+```
+
+應該會看到：
+
+```text
+ansible  docker-lab  terraform  docs
+```
+
 ## 你會練到什麼
 
 - Terraform 管理 desired state
@@ -54,6 +76,22 @@ Prometheus:  http://localhost:19090
 Grafana:     http://localhost:13000
 Grafana 帳密: admin / admin
 Dashboard:   IaC Docker Lab Overview
+```
+
+如果 `terraform init` 顯示：
+
+```text
+Terraform initialized in an empty directory!
+The directory has no Terraform configuration files.
+```
+
+代表你目前不在有 `.tf` 檔案的 Terraform 目錄。請回到專案根目錄後重新進入正確資料夾：
+
+```bash
+cd /home/ianhsu/Projects/iac-monitoring-system/iac-monitoring-system
+cd docker-lab/terraform
+ls *.tf
+terraform init
 ```
 
 ### 查看目前 Terraform 管理的資源
