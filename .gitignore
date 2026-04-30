@@ -7,6 +7,8 @@ venv/
 # Local runtime logs
 *.log
 monitor-agent.log
+monitor-agent.pid
+monitor-agent.stdout
 
 # Terraform local state and provider cache
 .terraform/
@@ -27,6 +29,11 @@ plan.out
 # Ansible local output
 ansible/*.retry
 ansible/inventory.ini
+ansible/docker-lab-inventory.ini
+ansible/group_vars/docker_lab_stack/generated.yml
+
+# Docker simulation lab runtime
+.docker-lab/
 
 # Local teaching notes requested outside version control
 learning-notes/

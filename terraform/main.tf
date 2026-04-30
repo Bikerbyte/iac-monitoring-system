@@ -11,6 +11,7 @@ terraform {
 
 locals {
   selected_hosts = slice(var.vm_hosts, 0, var.node_count)
+  stack_host     = local.selected_hosts[0]
 
   inventory_lines = [
     for host in local.selected_hosts :
@@ -30,5 +31,9 @@ locals {
 # and keep the outputs/inventory shape the same for Ansible.
 resource "local_file" "ansible_inventory" {
   filename = "${path.module}/../ansible/inventory.ini"
-  content  = "${join("\n", concat(["[monitoring_agents]"], local.inventory_lines))}\n"
+  content = format("%s\n", join("\n", concat(
+    ["[monitoring_agents]"],
+    local.inventory_lines,
+    ["", "[monitoring_stack]", local.stack_host.name],
+  )))
 }
