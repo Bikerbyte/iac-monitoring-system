@@ -1,0 +1,10 @@
+# Copy this file to terraform.tfvars for local Docker lab overrides.
+
+node_count = 2
+
+app_message_prefix = "hello from terraform node"
+
+host_http_base_port = 18080
+grafana_port        = 13000
+prometheus_port     = 19090
+blackbox_port       = 19115

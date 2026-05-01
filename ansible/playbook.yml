@@ -194,13 +194,14 @@
         mode: "0644"
       notify: Restart Grafana
 
-    - name: Deploy Grafana lab dashboard
+    - name: Deploy Grafana lab dashboards
       ansible.builtin.copy:
-        src: files/grafana/dashboards/iac-lab-overview.json
-        dest: "{{ monitoring_stack_dir }}/grafana/dashboards/iac-lab-overview.json"
+        src: "{{ item }}"
+        dest: "{{ monitoring_stack_dir }}/grafana/dashboards/{{ item | basename }}"
         owner: root
         group: root
         mode: "0644"
+      loop: "{{ query('ansible.builtin.fileglob', playbook_dir + '/files/grafana/dashboards/*.json') }}"
       notify: Restart Grafana
 
     - name: Ensure monitoring Docker network exists

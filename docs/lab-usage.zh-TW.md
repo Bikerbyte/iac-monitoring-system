@@ -74,6 +74,12 @@ cd ../../..
 ansible-playbook -i ansible/docker-lab-inventory.ini ansible/docker-lab.yml
 ```
 
+也可以用 Makefile 快速啟動：
+
+```bash
+make docker-up
+```
+
 開啟服務：
 
 ```text
@@ -83,6 +89,7 @@ Prometheus:  http://localhost:19090
 Grafana:     http://localhost:13000
 Grafana 帳密: admin / admin
 Dashboard:   IaC Docker Lab Overview
+Details:     IaC Docker Lab Details
 ```
 
 如果 `terraform init` 顯示：
@@ -127,6 +134,12 @@ cd ../../..
 ansible-playbook -i ansible/docker-lab-inventory.ini ansible/docker-lab.yml
 ```
 
+Makefile 版本：
+
+```bash
+make docker-scale NODE_COUNT=3
+```
+
 驗證：
 
 ```bash
@@ -134,6 +147,8 @@ curl http://localhost:18082
 ```
 
 再打開 Grafana，`Terraform Managed Containers` 應該會變成 3。
+
+如果要看每個 target 的細節，可以切到 `IaC Docker Lab Details`，裡面有 failed targets、availability、latency table 和 HTTP status code。
 
 ### 模擬刪除資源
 
@@ -145,6 +160,12 @@ terraform apply -var='node_count=1'
 
 cd ../../..
 ansible-playbook -i ansible/docker-lab-inventory.ini ansible/docker-lab.yml
+```
+
+Makefile 版本：
+
+```bash
+make docker-scale NODE_COUNT=1
 ```
 
 驗證：
@@ -162,6 +183,12 @@ Grafana 的 target 數量會跟著變少。
 ```bash
 cd labs/docker/terraform
 terraform apply -var='app_message_prefix=updated by terraform'
+```
+
+Makefile 版本：
+
+```bash
+make docker-edit
 ```
 
 驗證：
@@ -196,6 +223,8 @@ docker stop iac-lab-app-node-01
 
 幾秒後 Grafana 的 `Simulated App Health` 會顯示該 target down。
 
+切到 `IaC Docker Lab Details` 可以看到 `Failed Targets` 變成 1，並確認是哪個 target down。
+
 恢復：
 
 ```bash
@@ -220,9 +249,20 @@ terraform destroy
 docker rm -f iac-lab-blackbox iac-lab-prometheus iac-lab-grafana
 ```
 
+Makefile 版本：
+
+```bash
+make docker-down
+```
+
 ## VM Lab Mode
 
 VM 模式比較接近真實環境。Terraform 預設使用 mock inventory，讓你先練習 Terraform 產生 Ansible inventory 的流程；如果把 `enable_aws_resources` 改成 `true`，Terraform 會透過 AWS provider 建立 EC2、security group 和 key pair，再產生 inventory。Ansible 再把 agent、node_exporter、Prometheus 和 Grafana 部署到 Linux VM。
+
+Python agent 會做兩件事：
+
+- 寫 log 到 `/var/log/monitor-agent.log`
+- 開啟 Prometheus metrics endpoint：`http://<VM IP>:8000/metrics`
 
 ### VM 模式的兩種跑法
 
@@ -263,7 +303,7 @@ labs/vm/terraform/variables.tf
 - `allowed_ssh_cidr_blocks`
 - `allowed_monitoring_cidr_blocks`
 
-> 注意：真的開 AWS 前，建議把 `allowed_ssh_cidr_blocks` 和 `allowed_monitoring_cidr_blocks` 從 `0.0.0.0/0` 改成你的固定 IP，例如 `["203.0.113.10/32"]`。
+> 注意：真的開 AWS 前，建議把 `allowed_ssh_cidr_blocks` 和 `allowed_monitoring_cidr_blocks` 從 `0.0.0.0/0` 改成你的固定 IP，例如 `["203.0.113.10/32"]`。`allowed_monitoring_cidr_blocks` 會影響 Grafana `3000`、Prometheus `9090`、node_exporter `9100`、monitor-agent metrics `8000`。
 
 ### 產生 Inventory
 
@@ -303,12 +343,15 @@ Grafana：
 ```text
 http://<第一台 VM IP>:3000
 admin / admin
+Dashboard: IaC Monitoring Lab Overview
+Agent Dashboard: IaC Agent Overview
 ```
 
 Prometheus targets：
 
 ```text
 http://<第一台 VM IP>:9090/targets
+Jobs: node-exporter, monitor-agent
 ```
 
 在 VM 上檢查 agent：
@@ -317,6 +360,7 @@ http://<第一台 VM IP>:9090/targets
 sudo systemctl status monitor-agent
 sudo journalctl -u monitor-agent -n 50 --no-pager
 sudo tail -f /var/log/monitor-agent.log
+curl http://localhost:8000/metrics
 sudo docker ps
 ```
 
