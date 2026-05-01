@@ -59,7 +59,7 @@ resource "docker_container" "app_node" {
 }
 
 resource "local_file" "ansible_inventory" {
-  filename = "${path.module}/../../ansible/docker-lab-inventory.ini"
+  filename = "${path.module}/../../../ansible/docker-lab-inventory.ini"
   content  = <<-EOT
     [docker_lab_stack]
     localhost ansible_connection=local
@@ -67,7 +67,7 @@ resource "local_file" "ansible_inventory" {
 }
 
 resource "local_file" "ansible_group_vars" {
-  filename = "${path.module}/../../ansible/group_vars/docker_lab_stack/generated.yml"
+  filename = "${path.module}/../../../ansible/group_vars/docker_lab_stack/generated.yml"
   content = yamlencode({
     iac_docker_lab_network         = docker_network.lab.name
     iac_docker_lab_app_targets     = local.app_targets
