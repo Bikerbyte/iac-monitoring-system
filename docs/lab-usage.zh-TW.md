@@ -5,13 +5,13 @@
 你可以用兩種模式操作：
 
 - Docker simulation mode：不用 VM，直接在本機用 Docker 模擬新增、刪除、編輯和派送資源
-- VM lab mode：使用真的 Linux VM，由 Terraform 產生 inventory，再用 Ansible 部署 monitoring stack
+- VM lab mode：預設用 mock inventory 練習流程，也可以打開 AWS EC2 模式建立真的 Linux VM，再用 Ansible 部署 monitoring stack
 
 建議先從 Docker simulation mode 開始，因為它最容易重複練習，也最適合展示 IaC 流程。
 
 ## 開始前確認位置
 
-以下指令都假設你在專案根目錄執行，也就是看得到 `docker-lab/`、`terraform/`、`ansible/` 的那一層。
+以下指令都假設你在專案根目錄執行，也就是看得到 `labs/`、`ansible/`、`agent/`、`docs/` 的那一層。
 
 如果你的終端機目前在外層資料夾，請先進入專案：
 
@@ -28,7 +28,14 @@ ls
 應該會看到：
 
 ```text
-ansible  docker-lab  terraform  docs
+ansible  agent  docs  labs
+```
+
+這個專案有兩個 Terraform 目錄：
+
+```text
+labs/docker/terraform/  Docker simulation mode，會建立本機 Docker app containers
+labs/vm/terraform/      VM lab mode，預設產生 mock inventory，可選擇建立 AWS EC2
 ```
 
 ## 你會練到什麼
@@ -59,11 +66,11 @@ Ansible   -> blackbox exporter
 ### 啟動 Docker Lab
 
 ```bash
-cd docker-lab/terraform
+cd labs/docker/terraform
 terraform init
 terraform apply
 
-cd ../..
+cd ../../..
 ansible-playbook -i ansible/docker-lab-inventory.ini ansible/docker-lab.yml
 ```
 
@@ -89,7 +96,7 @@ The directory has no Terraform configuration files.
 
 ```bash
 cd /home/ianhsu/Projects/iac-monitoring-system/iac-monitoring-system
-cd docker-lab/terraform
+cd labs/docker/terraform
 ls *.tf
 terraform init
 ```
@@ -97,7 +104,7 @@ terraform init
 ### 查看目前 Terraform 管理的資源
 
 ```bash
-cd docker-lab/terraform
+cd labs/docker/terraform
 terraform state list
 terraform output
 ```
@@ -113,10 +120,10 @@ docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
 把 app container 從 2 個增加到 3 個：
 
 ```bash
-cd docker-lab/terraform
+cd labs/docker/terraform
 terraform apply -var='node_count=3'
 
-cd ../..
+cd ../../..
 ansible-playbook -i ansible/docker-lab-inventory.ini ansible/docker-lab.yml
 ```
 
@@ -133,10 +140,10 @@ curl http://localhost:18082
 把 app container 縮回 1 個：
 
 ```bash
-cd docker-lab/terraform
+cd labs/docker/terraform
 terraform apply -var='node_count=1'
 
-cd ../..
+cd ../../..
 ansible-playbook -i ansible/docker-lab-inventory.ini ansible/docker-lab.yml
 ```
 
@@ -153,7 +160,7 @@ Grafana 的 target 數量會跟著變少。
 修改 app container 回應文字：
 
 ```bash
-cd docker-lab/terraform
+cd labs/docker/terraform
 terraform apply -var='app_message_prefix=updated by terraform'
 ```
 
@@ -192,7 +199,7 @@ docker stop iac-lab-app-node-01
 恢復：
 
 ```bash
-cd docker-lab/terraform
+cd labs/docker/terraform
 terraform apply
 ```
 
@@ -203,7 +210,7 @@ Terraform 會把 container 拉回 desired state。
 先刪 Terraform 管理的 app containers 和 network：
 
 ```bash
-cd docker-lab/terraform
+cd labs/docker/terraform
 terraform destroy
 ```
 
@@ -215,27 +222,53 @@ docker rm -f iac-lab-blackbox iac-lab-prometheus iac-lab-grafana
 
 ## VM Lab Mode
 
-VM 模式比較接近真實環境。Terraform 不直接建立 VM，而是管理 VM 清單並產生 Ansible inventory；Ansible 再把 agent、node_exporter、Prometheus 和 Grafana 部署到 Linux VM。
+VM 模式比較接近真實環境。Terraform 預設使用 mock inventory，讓你先練習 Terraform 產生 Ansible inventory 的流程；如果把 `enable_aws_resources` 改成 `true`，Terraform 會透過 AWS provider 建立 EC2、security group 和 key pair，再產生 inventory。Ansible 再把 agent、node_exporter、Prometheus 和 Grafana 部署到 Linux VM。
 
-### 修改 VM 清單
+### VM 模式的兩種跑法
+
+預設安全模式不會建立 AWS 資源，也不會產生雲端費用：
+
+```text
+enable_aws_resources = false
+```
+
+這時 Terraform 會使用 `mock_vm_hosts` 產生 inventory。你可以把 IP 改成既有 VM 的 IP，也可以只用來展示 Terraform output 和 inventory 流程。
+
+如果要真的建立 AWS EC2，請先準備：
+
+- AWS credentials，例如 `aws configure` 或環境變數
+- 可用的 AMI ID
+- SSH public/private key
+- 合適的 VPC/subnet，或使用 AWS default VPC
+
+### 修改 VM / AWS 設定
 
 編輯：
 
 ```text
-terraform/variables.tf
+labs/vm/terraform/variables.tf
 ```
 
-調整這些欄位：
+常用欄位：
 
 - `node_count`
-- `vm_hosts[*].ip_address`
-- `vm_hosts[*].ansible_user`
-- `vm_hosts[*].ssh_private_key_file`
+- `enable_aws_resources`
+- `mock_vm_hosts[*].ip_address`
+- `ansible_user`
+- `ssh_private_key_file`
+- `ssh_public_key_file`
+- `aws_region`
+- `aws_ami_id`
+- `aws_instance_type`
+- `allowed_ssh_cidr_blocks`
+- `allowed_monitoring_cidr_blocks`
+
+> 注意：真的開 AWS 前，建議把 `allowed_ssh_cidr_blocks` 和 `allowed_monitoring_cidr_blocks` 從 `0.0.0.0/0` 改成你的固定 IP，例如 `["203.0.113.10/32"]`。
 
 ### 產生 Inventory
 
 ```bash
-cd terraform
+cd labs/vm/terraform
 terraform init
 terraform apply
 ```
@@ -246,10 +279,20 @@ terraform apply
 terraform output
 ```
 
+如果要真的建立 AWS EC2，可以用 CLI 變數覆蓋：
+
+```bash
+terraform apply \
+  -var='enable_aws_resources=true' \
+  -var='aws_ami_id=ami-xxxxxxxxxxxxxxxxx' \
+  -var='ssh_public_key_file=~/.ssh/id_rsa.pub' \
+  -var='ssh_private_key_file=~/.ssh/id_rsa'
+```
+
 ### 部署到 VM
 
 ```bash
-cd ..
+cd ../../..
 ansible-playbook -i ansible/inventory.ini ansible/playbook.yml
 ```
 
@@ -275,6 +318,18 @@ sudo systemctl status monitor-agent
 sudo journalctl -u monitor-agent -n 50 --no-pager
 sudo tail -f /var/log/monitor-agent.log
 sudo docker ps
+```
+
+### 清除 AWS VM Lab
+
+如果你有打開 `enable_aws_resources=true` 建立 EC2，練習完請刪除，避免產生費用：
+
+```bash
+cd labs/vm/terraform
+terraform destroy \
+  -var='enable_aws_resources=true' \
+  -var='aws_ami_id=ami-xxxxxxxxxxxxxxxxx' \
+  -var='ssh_public_key_file=~/.ssh/id_rsa.pub'
 ```
 
 ## Demo 建議流程

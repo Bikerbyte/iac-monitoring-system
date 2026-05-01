@@ -1,6 +1,6 @@
-output "network_cidr" {
-  description = "Expected network range for this lab."
-  value       = var.network_cidr
+output "lab_mode" {
+  description = "Current VM lab mode."
+  value       = var.enable_aws_resources ? "aws-ec2" : "mock-inventory"
 }
 
 output "vm_ip_addresses" {
@@ -21,4 +21,9 @@ output "grafana_url" {
 output "prometheus_url" {
   description = "Prometheus URL exposed by the monitoring stack host."
   value       = "http://${local.stack_host.ip_address}:9090"
+}
+
+output "aws_instance_ids" {
+  description = "EC2 instance IDs created when enable_aws_resources is true."
+  value       = [for instance in aws_instance.monitor_node : instance.id]
 }

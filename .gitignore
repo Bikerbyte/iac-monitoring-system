@@ -37,3 +37,4 @@ ansible/group_vars/docker_lab_stack/generated.yml
 
 # Local teaching notes requested outside version control
 learning-notes/
+Ian_Style_SKILL.zh-TW.md
