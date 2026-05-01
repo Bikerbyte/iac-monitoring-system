@@ -14,3 +14,10 @@ scrape_configs:
 {% for host in groups["monitoring_agents"] %}
           - {{ hostvars[host].ansible_host }}:9100
 {% endfor %}
+
+  - job_name: monitor-agent
+    static_configs:
+      - targets:
+{% for host in groups["monitoring_agents"] %}
+          - {{ hostvars[host].ansible_host }}:8000
+{% endfor %}

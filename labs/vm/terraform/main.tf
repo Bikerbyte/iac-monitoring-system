@@ -97,6 +97,14 @@ resource "aws_security_group" "monitoring_lab" {
     cidr_blocks = var.allowed_monitoring_cidr_blocks
   }
 
+  ingress {
+    description = "monitor-agent Prometheus metrics"
+    from_port   = 8000
+    to_port     = 8000
+    protocol    = "tcp"
+    cidr_blocks = var.allowed_monitoring_cidr_blocks
+  }
+
   egress {
     description = "Outbound internet access"
     from_port   = 0

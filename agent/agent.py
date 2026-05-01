@@ -19,10 +19,32 @@ from typing import Any, Callable
 
 import psutil
 import yaml
+from prometheus_client import Gauge, start_http_server
 
 
 DEFAULT_CONFIG_PATH = "/etc/monitor-agent/config.yml"
 DEFAULT_LOG_FILE = "/var/log/monitor-agent.log"
+DEFAULT_METRICS_PORT = 8000
+
+
+RESOURCE_CPU_PERCENT = Gauge("monitor_agent_cpu_percent", "CPU usage collected by the monitor agent.")
+RESOURCE_MEMORY_PERCENT = Gauge("monitor_agent_memory_percent", "Memory usage collected by the monitor agent.")
+RESOURCE_ZOMBIE_PROCESSES = Gauge("monitor_agent_zombie_process_count", "Zombie process count collected by the monitor agent.")
+NETWORK_CHECK_SUCCESS = Gauge(
+    "monitor_agent_network_check_success",
+    "Network check result. 1 means success, 0 means failure.",
+    ["type", "name", "host", "port"],
+)
+NETWORK_CHECK_ATTEMPTS = Gauge(
+    "monitor_agent_network_check_attempts",
+    "Attempts used by the latest network check cycle.",
+    ["type", "name", "host", "port"],
+)
+NETWORK_CHECK_LAST_RUN = Gauge(
+    "monitor_agent_network_check_last_run_timestamp_seconds",
+    "Unix timestamp of the latest network check result.",
+    ["type", "name", "host", "port"],
+)
 
 
 @dataclass
@@ -45,6 +67,9 @@ class AgentConfig:
     retry_count: int
     retry_delay_seconds: float
     log_file: str
+    metrics_enabled: bool
+    metrics_listen_address: str
+    metrics_port: int
     dns_targets: list[DnsTarget]
     tcp_targets: list[TcpTarget]
 
@@ -83,6 +108,9 @@ def load_config(config_path: str) -> AgentConfig:
         retry_count=int(agent_section.get("retry_count", 2)),
         retry_delay_seconds=float(agent_section.get("retry_delay_seconds", 1)),
         log_file=str(agent_section.get("log_file", DEFAULT_LOG_FILE)),
+        metrics_enabled=bool(agent_section.get("metrics_enabled", True)),
+        metrics_listen_address=str(agent_section.get("metrics_listen_address", "0.0.0.0")),
+        metrics_port=int(agent_section.get("metrics_port", DEFAULT_METRICS_PORT)),
         dns_targets=dns_targets,
         tcp_targets=tcp_targets,
     )
@@ -96,6 +124,19 @@ def configure_logging(log_file: str) -> None:
         level=logging.INFO,
         format="%(asctime)s level=%(levelname)s message=%(message)s",
         datefmt="%Y-%m-%dT%H:%M:%S%z",
+    )
+
+
+def start_metrics_endpoint(config: AgentConfig) -> None:
+    if not config.metrics_enabled:
+        logging.info("monitor-agent metrics endpoint disabled")
+        return
+
+    start_http_server(config.metrics_port, addr=config.metrics_listen_address)
+    logging.info(
+        "monitor-agent metrics endpoint listening address=%s port=%s",
+        config.metrics_listen_address,
+        config.metrics_port,
     )
 
 
@@ -162,6 +203,10 @@ def run_with_retry(
 
 def run_check_cycle(config: AgentConfig) -> None:
     resources = collect_resource_status()
+    RESOURCE_CPU_PERCENT.set(resources["cpu_percent"])
+    RESOURCE_MEMORY_PERCENT.set(resources["memory_percent"])
+    RESOURCE_ZOMBIE_PROCESSES.set(resources["zombie_process_count"])
+
     logging.info(
         "resource_status cpu_percent=%.1f memory_percent=%.1f zombie_process_count=%s",
         resources["cpu_percent"],
@@ -201,6 +246,11 @@ def log_check_result(
 ) -> None:
     status = "ok" if ok else "failed"
     level = logging.INFO if ok else logging.ERROR
+    port_label = str(port or "")
+
+    NETWORK_CHECK_SUCCESS.labels(check_type, name, host, port_label).set(1 if ok else 0)
+    NETWORK_CHECK_ATTEMPTS.labels(check_type, name, host, port_label).set(attempts)
+    NETWORK_CHECK_LAST_RUN.labels(check_type, name, host, port_label).set(time.time())
 
     logging.log(
         level,
@@ -220,6 +270,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", default=DEFAULT_CONFIG_PATH, help="Path to YAML config file.")
     parser.add_argument("--log-file", default=None, help="Override log file path from config.")
     parser.add_argument("--interval", type=int, default=None, help="Override interval seconds from config.")
+    parser.add_argument("--metrics-port", type=int, default=None, help="Override Prometheus metrics endpoint port.")
+    parser.add_argument("--disable-metrics", action="store_true", help="Disable Prometheus metrics endpoint.")
     parser.add_argument("--once", action="store_true", help="Run one check cycle and exit.")
     return parser.parse_args()
 
@@ -233,9 +285,14 @@ def main() -> int:
             config.log_file = args.log_file
         if args.interval:
             config.interval_seconds = args.interval
+        if args.metrics_port:
+            config.metrics_port = args.metrics_port
+        if args.disable_metrics:
+            config.metrics_enabled = False
 
         configure_logging(config.log_file)
         logging.info("monitor-agent starting config=%s interval_seconds=%s", args.config, config.interval_seconds)
+        start_metrics_endpoint(config)
 
         while True:
             run_check_cycle(config)
