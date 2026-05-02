@@ -8,17 +8,17 @@ output "app_prometheus_targets" {
   value       = local.app_targets
 }
 
-output "ansible_inventory_path" {
-  description = "Generated Ansible inventory for Docker target deployment."
-  value       = local_file.ansible_inventory.filename
+output "monitoring_stack_vars_path" {
+  description = "Generated Ansible vars consumed by the central monitoring stack."
+  value       = local_file.monitoring_stack_docker_targets.filename
 }
 
 output "grafana_url" {
-  description = "Grafana URL for the Docker target."
-  value       = "http://localhost:${var.grafana_port}"
+  description = "Central Grafana URL for Docker target dashboards."
+  value       = "http://localhost:3000"
 }
 
 output "prometheus_url" {
-  description = "Prometheus URL for the Docker target."
-  value       = "http://localhost:${var.prometheus_port}"
+  description = "Central Prometheus URL for Docker target metrics."
+  value       = "http://localhost:9090"
 }

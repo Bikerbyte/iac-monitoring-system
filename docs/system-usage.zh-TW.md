@@ -50,17 +50,16 @@ infra/server/terraform/      Server Agent Mode，預設產生 mock inventory，�
 
 ## Docker Target Mode
 
-Docker 模式會用 Terraform 建立幾個 HTTP app containers，再用 Ansible 部署 blackbox exporter、Prometheus 和 Grafana。
+Docker 模式會用 Terraform 建立幾個 HTTP app containers，再把 target 清單寫給 central Prometheus/Grafana stack。
 
 架構：
 
 ```text
 Terraform -> Docker app containers
-          -> Ansible inventory/group vars
+          -> monitoring stack vars
 
-Ansible   -> blackbox exporter
-          -> Prometheus
-          -> Grafana dashboard
+Ansible   -> central Prometheus/Grafana
+          -> blackbox exporter
 ```
 
 ### 啟動 Docker Target
@@ -71,13 +70,13 @@ terraform init
 terraform apply
 
 cd ../../..
-ansible-playbook -i ansible/docker-target-inventory.ini ansible/docker-target.yml
+make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 也可以用 Makefile 快速啟動：
 
 ```bash
-make docker-up
+make docker-up ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 開啟服務：
@@ -85,8 +84,8 @@ make docker-up
 ```text
 App node 1:  http://localhost:18080
 App node 2:  http://localhost:18081
-Prometheus:  http://localhost:19090
-Grafana:     http://localhost:13000
+Prometheus:  http://localhost:9090
+Grafana:     http://localhost:3000
 Grafana 帳密: admin / admin
 Dashboard:   IaC Docker Target Overview
 Details:     IaC Docker Target Details
@@ -131,13 +130,13 @@ cd infra/docker/terraform
 terraform apply -var='node_count=3'
 
 cd ../../..
-ansible-playbook -i ansible/docker-target-inventory.ini ansible/docker-target.yml
+make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 Makefile 版本：
 
 ```bash
-make docker-scale NODE_COUNT=3
+make docker-scale NODE_COUNT=3 ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 驗證：
@@ -159,13 +158,13 @@ cd infra/docker/terraform
 terraform apply -var='node_count=1'
 
 cd ../../..
-ansible-playbook -i ansible/docker-target-inventory.ini ansible/docker-target.yml
+make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 Makefile 版本：
 
 ```bash
-make docker-scale NODE_COUNT=1
+make docker-scale NODE_COUNT=1 ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 驗證：
@@ -188,7 +187,7 @@ terraform apply -var='app_message_prefix=updated by terraform'
 Makefile 版本：
 
 ```bash
-make docker-edit
+make docker-edit ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 驗證：
@@ -204,13 +203,13 @@ curl http://localhost:18080
 當 Terraform 改變 target 清單後，要重新執行 Ansible，讓 Prometheus 設定跟著更新：
 
 ```bash
-ansible-playbook -i ansible/docker-target-inventory.ini ansible/docker-target.yml
+make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 可以用這個網址確認 Prometheus targets：
 
 ```text
-http://localhost:19090/targets
+http://localhost:9090/targets
 ```
 
 ### 模擬故障
@@ -243,16 +242,18 @@ cd infra/docker/terraform
 terraform destroy
 ```
 
-再清掉 Ansible 啟動的 monitoring containers：
+再讓 central stack 重新載入設定：
 
 ```bash
-docker rm -f iac-lab-blackbox iac-lab-prometheus iac-lab-grafana
+cd ../../..
+rm -f ansible/group_vars/monitoring_stack/docker_targets.yml
+make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 Makefile 版本：
 
 ```bash
-make docker-down
+make docker-down ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 ## Server Agent Mode

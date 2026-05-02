@@ -8,9 +8,35 @@ scrape_configs:
       - targets:
           - localhost:9090
 
+{% set agent_hosts = groups.get("monitoring_agents", []) %}
+{% if agent_hosts | length > 0 %}
   - job_name: monitor-agent
     static_configs:
       - targets:
-{% for host in groups["monitoring_agents"] %}
+{% for host in agent_hosts %}
           - {{ hostvars[host].ansible_host }}:8000
 {% endfor %}
+{% endif %}
+
+{% set docker_targets = iac_docker_target_app_targets | default([]) %}
+{% if docker_targets | length > 0 %}
+  - job_name: docker-target-http
+    metrics_path: /probe
+    params:
+      module:
+        - http_2xx
+    static_configs:
+      - targets:
+{% for target in docker_targets %}
+          - {{ target }}
+{% endfor %}
+    relabel_configs:
+      - source_labels:
+          - __address__
+        target_label: __param_target
+      - source_labels:
+          - __param_target
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+{% endif %}

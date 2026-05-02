@@ -58,21 +58,10 @@ resource "docker_container" "app_node" {
   }
 }
 
-resource "local_file" "ansible_inventory" {
-  filename = "${path.module}/../../../ansible/docker-target-inventory.ini"
-  content  = <<-EOT
-    [docker_target_stack]
-    localhost ansible_connection=local
-  EOT
-}
-
-resource "local_file" "ansible_group_vars" {
-  filename = "${path.module}/../../../ansible/group_vars/docker_target_stack/generated.yml"
+resource "local_file" "monitoring_stack_docker_targets" {
+  filename = "${path.module}/../../../ansible/group_vars/monitoring_stack/docker_targets.yml"
   content = yamlencode({
-    iac_docker_target_network         = docker_network.lab.name
-    iac_docker_target_app_targets     = local.app_targets
-    iac_docker_target_grafana_port    = var.grafana_port
-    iac_docker_target_prometheus_port = var.prometheus_port
-    iac_docker_target_blackbox_port   = var.blackbox_port
+    iac_docker_target_network     = docker_network.lab.name
+    iac_docker_target_app_targets = local.app_targets
   })
 }
