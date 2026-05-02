@@ -88,7 +88,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "probe_success{job=\"docker-lab-http\"}",
+          "expr": "probe_success{job=\"docker-target-http\"}",
           "legendFormat": "{{instance}}",
           "refId": "A"
         }
@@ -142,7 +142,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "count(probe_success{job=\"docker-lab-http\"})",
+          "expr": "count(probe_success{job=\"docker-target-http\"})",
           "legendFormat": "containers",
           "refId": "A"
         }
@@ -204,7 +204,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "probe_duration_seconds{job=\"docker-lab-http\"}",
+          "expr": "probe_duration_seconds{job=\"docker-target-http\"}",
           "legendFormat": "{{instance}}",
           "refId": "A"
         }
@@ -266,7 +266,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "probe_duration_seconds{job=\"docker-lab-http\"}",
+          "expr": "probe_duration_seconds{job=\"docker-target-http\"}",
           "legendFormat": "{{instance}}",
           "refId": "A"
         }
@@ -327,7 +327,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "probe_success{job=\"docker-lab-http\"}",
+          "expr": "probe_success{job=\"docker-target-http\"}",
           "legendFormat": "{{instance}}",
           "refId": "A"
         }
@@ -353,8 +353,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "IaC Docker Lab Overview",
-  "uid": "iac-docker-lab",
+  "title": "IaC Docker Target Overview",
+  "uid": "iac-docker-target",
   "version": 1,
   "weekStart": ""
 }

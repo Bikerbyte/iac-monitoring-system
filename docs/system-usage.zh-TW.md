@@ -1,17 +1,17 @@
-# IaC Monitoring Lab 使用教學
+# IaC Monitoring System 使用教學
 
-這份 lab 用來練習 Terraform、Ansible、Prometheus 和 Grafana 的基本工作流。
+這份文件用來練習 Terraform、Ansible、Prometheus 和 Grafana 的基本工作流。
 
 你可以用兩種模式操作：
 
-- Docker simulation mode：不用 VM，直接在本機用 Docker 模擬新增、刪除、編輯和派送資源
-- VM lab mode：預設用 mock inventory 練習流程，也可以打開 AWS EC2 模式建立真的 Linux VM，再用 Ansible 部署 monitoring stack
+- Docker Target Mode：不用 server，直接在本機用 Docker 模擬新增、刪除、編輯和派送資源
+- Server Agent Mode：預設用 mock inventory 練習流程，也可以打開 AWS EC2 模式建立真的 Linux server，再用 Ansible 部署 monitoring stack
 
-建議先從 Docker simulation mode 開始，因為它最容易重複練習，也最適合展示 IaC 流程。
+建議先從 Docker Target Mode 開始，因為它最容易重複練習，也最適合展示 IaC 流程。
 
 ## 開始前確認位置
 
-以下指令都假設你在專案根目錄執行，也就是看得到 `labs/`、`ansible/`、`agent/`、`docs/` 的那一層。
+以下指令都假設你在專案根目錄執行，也就是看得到 `infra/`、`ansible/`、`agent/`、`docs/` 的那一層。
 
 如果你的終端機目前在外層資料夾，請先進入專案：
 
@@ -28,14 +28,14 @@ ls
 應該會看到：
 
 ```text
-ansible  agent  docs  labs
+ansible  agent  docs  infra
 ```
 
 這個專案有兩個 Terraform 目錄：
 
 ```text
-labs/docker/terraform/  Docker simulation mode，會建立本機 Docker app containers
-labs/vm/terraform/      VM lab mode，預設產生 mock inventory，可選擇建立 AWS EC2
+infra/docker/terraform/  Docker Target Mode，會建立本機 Docker app containers
+infra/server/terraform/      Server Agent Mode，預設產生 mock inventory，可選擇建立 AWS EC2
 ```
 
 ## 你會練到什麼
@@ -48,7 +48,7 @@ labs/vm/terraform/      VM lab mode，預設產生 mock inventory，可選擇建
 - Grafana 自動載入 datasource 和 dashboard
 - 用 UI 驗證資源狀態是否符合預期
 
-## Docker Simulation Mode
+## Docker Target Mode
 
 Docker 模式會用 Terraform 建立幾個 HTTP app containers，再用 Ansible 部署 blackbox exporter、Prometheus 和 Grafana。
 
@@ -63,15 +63,15 @@ Ansible   -> blackbox exporter
           -> Grafana dashboard
 ```
 
-### 啟動 Docker Lab
+### 啟動 Docker Target
 
 ```bash
-cd labs/docker/terraform
+cd infra/docker/terraform
 terraform init
 terraform apply
 
 cd ../../..
-ansible-playbook -i ansible/docker-lab-inventory.ini ansible/docker-lab.yml
+ansible-playbook -i ansible/docker-target-inventory.ini ansible/docker-target.yml
 ```
 
 也可以用 Makefile 快速啟動：
@@ -88,8 +88,8 @@ App node 2:  http://localhost:18081
 Prometheus:  http://localhost:19090
 Grafana:     http://localhost:13000
 Grafana 帳密: admin / admin
-Dashboard:   IaC Docker Lab Overview
-Details:     IaC Docker Lab Details
+Dashboard:   IaC Docker Target Overview
+Details:     IaC Docker Target Details
 ```
 
 如果 `terraform init` 顯示：
@@ -103,7 +103,7 @@ The directory has no Terraform configuration files.
 
 ```bash
 cd /home/ianhsu/Projects/iac-monitoring-system/iac-monitoring-system
-cd labs/docker/terraform
+cd infra/docker/terraform
 ls *.tf
 terraform init
 ```
@@ -111,7 +111,7 @@ terraform init
 ### 查看目前 Terraform 管理的資源
 
 ```bash
-cd labs/docker/terraform
+cd infra/docker/terraform
 terraform state list
 terraform output
 ```
@@ -127,11 +127,11 @@ docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
 把 app container 從 2 個增加到 3 個：
 
 ```bash
-cd labs/docker/terraform
+cd infra/docker/terraform
 terraform apply -var='node_count=3'
 
 cd ../../..
-ansible-playbook -i ansible/docker-lab-inventory.ini ansible/docker-lab.yml
+ansible-playbook -i ansible/docker-target-inventory.ini ansible/docker-target.yml
 ```
 
 Makefile 版本：
@@ -148,18 +148,18 @@ curl http://localhost:18082
 
 再打開 Grafana，`Terraform Managed Containers` 應該會變成 3。
 
-如果要看每個 target 的細節，可以切到 `IaC Docker Lab Details`，裡面有 failed targets、availability、latency table 和 HTTP status code。
+如果要看每個 target 的細節，可以切到 `IaC Docker Target Details`，裡面有 failed targets、availability、latency table 和 HTTP status code。
 
 ### 模擬刪除資源
 
 把 app container 縮回 1 個：
 
 ```bash
-cd labs/docker/terraform
+cd infra/docker/terraform
 terraform apply -var='node_count=1'
 
 cd ../../..
-ansible-playbook -i ansible/docker-lab-inventory.ini ansible/docker-lab.yml
+ansible-playbook -i ansible/docker-target-inventory.ini ansible/docker-target.yml
 ```
 
 Makefile 版本：
@@ -181,7 +181,7 @@ Grafana 的 target 數量會跟著變少。
 修改 app container 回應文字：
 
 ```bash
-cd labs/docker/terraform
+cd infra/docker/terraform
 terraform apply -var='app_message_prefix=updated by terraform'
 ```
 
@@ -204,7 +204,7 @@ curl http://localhost:18080
 當 Terraform 改變 target 清單後，要重新執行 Ansible，讓 Prometheus 設定跟著更新：
 
 ```bash
-ansible-playbook -i ansible/docker-lab-inventory.ini ansible/docker-lab.yml
+ansible-playbook -i ansible/docker-target-inventory.ini ansible/docker-target.yml
 ```
 
 可以用這個網址確認 Prometheus targets：
@@ -223,23 +223,23 @@ docker stop iac-lab-app-node-01
 
 幾秒後 Grafana 的 `Simulated App Health` 會顯示該 target down。
 
-切到 `IaC Docker Lab Details` 可以看到 `Failed Targets` 變成 1，並確認是哪個 target down。
+切到 `IaC Docker Target Details` 可以看到 `Failed Targets` 變成 1，並確認是哪個 target down。
 
 恢復：
 
 ```bash
-cd labs/docker/terraform
+cd infra/docker/terraform
 terraform apply
 ```
 
 Terraform 會把 container 拉回 desired state。
 
-### 清除 Docker Lab
+### 清除 Docker Target
 
 先刪 Terraform 管理的 app containers 和 network：
 
 ```bash
-cd labs/docker/terraform
+cd infra/docker/terraform
 terraform destroy
 ```
 
@@ -255,16 +255,16 @@ Makefile 版本：
 make docker-down
 ```
 
-## VM Lab Mode
+## Server Agent Mode
 
-VM 模式比較接近真實環境。Terraform 預設使用 mock inventory，讓你先練習 Terraform 產生 Ansible inventory 的流程；如果把 `enable_aws_resources` 改成 `true`，Terraform 會透過 AWS provider 建立 EC2、security group 和 key pair，再產生 inventory。Ansible 再把 agent、node_exporter、Prometheus 和 Grafana 部署到 Linux VM。
+Server Agent 模式比較接近真實環境。Terraform 預設使用 mock inventory，讓你先練習 Terraform 產生 Ansible inventory 的流程；如果把 `enable_aws_resources` 改成 `true`，Terraform 會透過 AWS provider 建立 EC2、security group 和 key pair，再產生 inventory。Ansible 會把 Python agent 部署到遠端 Linux servers，並在 control node 部署 Prometheus 和 Grafana。
 
 Python agent 會做兩件事：
 
 - 寫 log 到 `/var/log/monitor-agent.log`
-- 開啟 Prometheus metrics endpoint：`http://<VM IP>:8000/metrics`
+- 開啟 Prometheus metrics endpoint：`http://<server IP>:8000/metrics`
 
-### VM 模式的兩種跑法
+### Server Agent 模式的兩種跑法
 
 預設安全模式不會建立 AWS 資源，也不會產生雲端費用：
 
@@ -272,7 +272,7 @@ Python agent 會做兩件事：
 enable_aws_resources = false
 ```
 
-這時 Terraform 會使用 `mock_vm_hosts` 產生 inventory。你可以把 IP 改成既有 VM 的 IP，也可以只用來展示 Terraform output 和 inventory 流程。
+這時 Terraform 會使用 `server_hosts` 產生 inventory。你可以把 IP 改成既有 server 或 Linux server 的 IP，也可以只用來展示 Terraform output 和 inventory 流程。
 
 如果要真的建立 AWS EC2，請先準備：
 
@@ -281,19 +281,19 @@ enable_aws_resources = false
 - SSH public/private key
 - 合適的 VPC/subnet，或使用 AWS default VPC
 
-### 修改 VM / AWS 設定
+### 修改 Server Agent / AWS 設定
 
 編輯：
 
 ```text
-labs/vm/terraform/variables.tf
+infra/server/terraform/variables.tf
 ```
 
 常用欄位：
 
 - `node_count`
 - `enable_aws_resources`
-- `mock_vm_hosts[*].ip_address`
+- `server_hosts[*].ip_address`
 - `ansible_user`
 - `ssh_private_key_file`
 - `ssh_public_key_file`
@@ -303,12 +303,43 @@ labs/vm/terraform/variables.tf
 - `allowed_ssh_cidr_blocks`
 - `allowed_monitoring_cidr_blocks`
 
-> 注意：真的開 AWS 前，建議把 `allowed_ssh_cidr_blocks` 和 `allowed_monitoring_cidr_blocks` 從 `0.0.0.0/0` 改成你的固定 IP，例如 `["203.0.113.10/32"]`。`allowed_monitoring_cidr_blocks` 會影響 Grafana `3000`、Prometheus `9090`、node_exporter `9100`、monitor-agent metrics `8000`。
+> 注意：真的開 AWS 前，建議把 `allowed_ssh_cidr_blocks` 和 `allowed_monitoring_cidr_blocks` 從 `0.0.0.0/0` 改成你的固定 IP，例如 `["203.0.113.10/32"]`。`allowed_monitoring_cidr_blocks` 會影響 Grafana `3000`、Prometheus `9090`、monitor-agent metrics `8000`。
+
+如果是既有 VMware / Linux servers，可以先用類似這樣的 `infra/server/terraform/terraform.tfvars`：
+
+```hcl
+node_count           = 2
+enable_aws_resources = false
+
+server_hosts = [
+  {
+    name                 = "monitor-node-02"
+    ip_address           = "192.168.0.146"
+    ansible_user         = "deploy"
+    ssh_private_key_file = ""
+  },
+  {
+    name                 = "monitor-node-03"
+    ip_address           = "192.168.0.235"
+    ansible_user         = "deploy"
+    ssh_private_key_file = ""
+  }
+]
+```
+
+`ssh_private_key_file = ""` 代表 inventory 不指定 SSH key。這時 Ansible 可以用互動式密碼登入：
+
+```bash
+make server-agent ANSIBLE_FLAGS="--ask-pass --ask-become-pass"
+make server-stack ANSIBLE_FLAGS="--ask-become-pass"
+```
+
+正式環境建議改用 SSH key。
 
 ### 產生 Inventory
 
 ```bash
-cd labs/vm/terraform
+cd infra/server/terraform
 terraform init
 terraform apply
 ```
@@ -329,47 +360,53 @@ terraform apply \
   -var='ssh_private_key_file=~/.ssh/id_rsa'
 ```
 
-### 部署到 VM
+### 部署到 Linux servers
 
 ```bash
 cd ../../..
-ansible-playbook -i ansible/inventory.ini ansible/playbook.yml
+make server-agent ANSIBLE_FLAGS="--ask-pass --ask-become-pass"
+make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
-### VM 模式驗證
+如果已經設定 SSH key：
+
+```bash
+make server-agent
+make server-stack ANSIBLE_FLAGS="--ask-become-pass"
+```
+
+### Server Agent 模式驗證
 
 Grafana：
 
 ```text
-http://<第一台 VM IP>:3000
+http://localhost:3000
 admin / admin
-Dashboard: IaC Monitoring Lab Overview
-Agent Dashboard: IaC Agent Overview
+Dashboard: IaC Agent Overview
 ```
 
 Prometheus targets：
 
 ```text
-http://<第一台 VM IP>:9090/targets
-Jobs: node-exporter, monitor-agent
+http://localhost:9090/targets
+Jobs: monitor-agent
 ```
 
-在 VM 上檢查 agent：
+在 Linux server 上檢查 agent：
 
 ```bash
 sudo systemctl status monitor-agent
 sudo journalctl -u monitor-agent -n 50 --no-pager
 sudo tail -f /var/log/monitor-agent.log
 curl http://localhost:8000/metrics
-sudo docker ps
 ```
 
-### 清除 AWS VM Lab
+### 清除 AWS Server Agent Mode
 
 如果你有打開 `enable_aws_resources=true` 建立 EC2，練習完請刪除，避免產生費用：
 
 ```bash
-cd labs/vm/terraform
+cd infra/server/terraform
 terraform destroy \
   -var='enable_aws_resources=true' \
   -var='aws_ami_id=ami-xxxxxxxxxxxxxxxxx' \

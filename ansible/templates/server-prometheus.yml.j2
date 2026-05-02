@@ -8,13 +8,6 @@ scrape_configs:
       - targets:
           - localhost:9090
 
-  - job_name: node-exporter
-    static_configs:
-      - targets:
-{% for host in groups["monitoring_agents"] %}
-          - {{ hostvars[host].ansible_host }}:9100
-{% endfor %}
-
   - job_name: monitor-agent
     static_configs:
       - targets:

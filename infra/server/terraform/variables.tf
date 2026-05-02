@@ -1,47 +1,47 @@
 variable "node_count" {
-  description = "Number of Linux nodes to manage in this lab. Keep this between 1 and 2 for the learning scenario."
+  description = "Number of Linux nodes to manage in this system."
   type        = number
   default     = 1
 
   validation {
-    condition     = var.node_count >= 1 && var.node_count <= 2
-    error_message = "node_count must be 1 or 2."
+    condition     = var.node_count >= 1 && var.node_count <= 5
+    error_message = "node_count must be between 1 and 5."
   }
 }
 
 variable "enable_aws_resources" {
-  description = "When false, Terraform only simulates AWS VM outputs and generates Ansible inventory. When true, Terraform creates EC2 resources."
+  description = "When false, Terraform only simulates AWS server outputs and generates Ansible inventory. When true, Terraform creates EC2 resources."
   type        = bool
   default     = false
 }
 
-variable "mock_vm_hosts" {
-  description = "Mock Linux hosts used when enable_aws_resources is false. Replace these with reachable VM IPs if you want to run Ansible without AWS."
+variable "server_hosts" {
+  description = "Existing Linux servers used when enable_aws_resources is false."
   type = list(object({
     name                 = string
     ip_address           = string
     ansible_user         = string
-    ssh_private_key_file = string
+    ssh_private_key_file = optional(string, "")
   }))
 
   default = [
     {
-      name                 = "monitor-node-01"
-      ip_address           = "192.168.1.101"
-      ansible_user         = "ubuntu"
-      ssh_private_key_file = "~/.ssh/id_rsa"
+      name                 = "monitor-node-02"
+      ip_address           = "192.168.0.146"
+      ansible_user         = "deploy"
+      ssh_private_key_file = ""
     },
     {
-      name                 = "monitor-node-02"
-      ip_address           = "192.168.1.102"
-      ansible_user         = "ubuntu"
-      ssh_private_key_file = "~/.ssh/id_rsa"
+      name                 = "monitor-node-03"
+      ip_address           = "192.168.0.235"
+      ansible_user         = "deploy"
+      ssh_private_key_file = ""
     }
   ]
 }
 
 variable "ansible_user" {
-  description = "SSH user for EC2 instances created by this lab. Ubuntu AMIs usually use ubuntu; Amazon Linux usually uses ec2-user."
+  description = "SSH user for EC2 instances created by this system. Ubuntu AMIs usually use ubuntu; Amazon Linux usually uses ec2-user."
   type        = string
   default     = "ubuntu"
 }
@@ -59,7 +59,7 @@ variable "ssh_public_key_file" {
 }
 
 variable "aws_region" {
-  description = "AWS region for the VM lab."
+  description = "AWS region for the Server Agent Mode."
   type        = string
   default     = "ap-northeast-1"
 }
@@ -71,7 +71,7 @@ variable "aws_ami_id" {
 }
 
 variable "aws_instance_type" {
-  description = "EC2 instance type for monitoring lab nodes."
+  description = "EC2 instance type for monitoring system nodes."
   type        = string
   default     = "t3.micro"
 }
@@ -85,13 +85,13 @@ variable "aws_instance_name_prefix" {
 variable "aws_key_pair_name" {
   description = "EC2 key pair name managed by Terraform."
   type        = string
-  default     = "iac-monitoring-lab-key"
+  default     = "iac-monitoring-system-key"
 }
 
 variable "aws_security_group_name" {
-  description = "Security group name for the AWS VM lab."
+  description = "Security group name for the AWS Server Agent Mode."
   type        = string
-  default     = "iac-monitoring-lab-sg"
+  default     = "iac-monitoring-system-sg"
 }
 
 variable "aws_vpc_id" {
@@ -119,7 +119,7 @@ variable "allowed_ssh_cidr_blocks" {
 }
 
 variable "allowed_monitoring_cidr_blocks" {
-  description = "CIDR blocks allowed to access Grafana, Prometheus, and node_exporter."
+  description = "CIDR blocks allowed to access Grafana, Prometheus, and monitor-agent metrics."
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }

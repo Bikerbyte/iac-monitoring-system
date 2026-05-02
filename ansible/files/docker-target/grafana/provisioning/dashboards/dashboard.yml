@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: docker-lab
+  - name: docker-target
     orgId: 1
-    folder: IaC Docker Lab
+    folder: IaC Docker Target
     type: file
     disableDeletion: false
     editable: true

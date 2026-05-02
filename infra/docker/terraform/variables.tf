@@ -9,8 +9,8 @@ variable "node_count" {
   }
 }
 
-variable "lab_network_name" {
-  description = "Docker network used by the simulated lab resources and monitoring stack."
+variable "docker_network_name" {
+  description = "Docker network used by the simulated Docker target resources and monitoring stack."
   type        = string
   default     = "iac-docker-lab"
 }
@@ -40,19 +40,19 @@ variable "host_http_base_port" {
 }
 
 variable "grafana_port" {
-  description = "Host port for the Docker lab Grafana container."
+  description = "Host port for the Docker target Grafana container."
   type        = number
   default     = 13000
 }
 
 variable "prometheus_port" {
-  description = "Host port for the Docker lab Prometheus container."
+  description = "Host port for the Docker target Prometheus container."
   type        = number
   default     = 19090
 }
 
 variable "blackbox_port" {
-  description = "Host port for the Docker lab blackbox exporter container."
+  description = "Host port for the Docker target blackbox exporter container."
   type        = number
   default     = 19115
 }

@@ -75,7 +75,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "avg(avg_over_time(probe_success{job=\"docker-lab-http\"}[5m])) * 100",
+          "expr": "avg(avg_over_time(probe_success{job=\"docker-target-http\"}[5m])) * 100",
           "legendFormat": "availability",
           "refId": "A"
         }
@@ -133,7 +133,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "count(probe_success{job=\"docker-lab-http\"} == 0)",
+          "expr": "count(probe_success{job=\"docker-target-http\"} == 0)",
           "legendFormat": "failed",
           "refId": "A"
         }
@@ -195,7 +195,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "avg(probe_duration_seconds{job=\"docker-lab-http\"})",
+          "expr": "avg(probe_duration_seconds{job=\"docker-target-http\"})",
           "legendFormat": "average",
           "refId": "A"
         }
@@ -257,7 +257,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "max(probe_duration_seconds{job=\"docker-lab-http\"})",
+          "expr": "max(probe_duration_seconds{job=\"docker-target-http\"})",
           "legendFormat": "maximum",
           "refId": "A"
         }
@@ -333,7 +333,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "probe_success{job=\"docker-lab-http\"}",
+          "expr": "probe_success{job=\"docker-target-http\"}",
           "format": "table",
           "instant": true,
           "legendFormat": "{{instance}}",
@@ -418,7 +418,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "probe_duration_seconds{job=\"docker-lab-http\"}",
+          "expr": "probe_duration_seconds{job=\"docker-target-http\"}",
           "format": "table",
           "instant": true,
           "legendFormat": "{{instance}}",
@@ -507,7 +507,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "avg_over_time(probe_success{job=\"docker-lab-http\"}[5m]) * 100",
+          "expr": "avg_over_time(probe_success{job=\"docker-target-http\"}[5m]) * 100",
           "legendFormat": "{{instance}}",
           "refId": "A"
         }
@@ -570,7 +570,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "probe_duration_seconds{job=\"docker-lab-http\"}",
+          "expr": "probe_duration_seconds{job=\"docker-target-http\"}",
           "legendFormat": "{{instance}}",
           "refId": "A"
         }
@@ -632,7 +632,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "probe_http_status_code{job=\"docker-lab-http\"}",
+          "expr": "probe_http_status_code{job=\"docker-target-http\"}",
           "legendFormat": "{{instance}}",
           "refId": "A"
         }
@@ -694,7 +694,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "probe_http_duration_seconds{job=\"docker-lab-http\"}",
+          "expr": "probe_http_duration_seconds{job=\"docker-target-http\"}",
           "legendFormat": "{{instance}} {{phase}}",
           "refId": "A"
         }
@@ -720,8 +720,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "IaC Docker Lab Details",
-  "uid": "iac-docker-lab-details",
+  "title": "IaC Docker Target Details",
+  "uid": "iac-docker-target-details",
   "version": 1,
   "weekStart": ""
 }

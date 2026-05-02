@@ -9,16 +9,16 @@ output "app_prometheus_targets" {
 }
 
 output "ansible_inventory_path" {
-  description = "Generated Ansible inventory for Docker lab deployment."
+  description = "Generated Ansible inventory for Docker target deployment."
   value       = local_file.ansible_inventory.filename
 }
 
 output "grafana_url" {
-  description = "Grafana URL for the Docker lab."
+  description = "Grafana URL for the Docker target."
   value       = "http://localhost:${var.grafana_port}"
 }
 
 output "prometheus_url" {
-  description = "Prometheus URL for the Docker lab."
+  description = "Prometheus URL for the Docker target."
   value       = "http://localhost:${var.prometheus_port}"
 }
