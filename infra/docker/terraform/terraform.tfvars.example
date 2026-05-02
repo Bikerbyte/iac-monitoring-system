@@ -1,4 +1,4 @@
-# Copy this file to terraform.tfvars for local Docker lab overrides.
+# Copy this file to terraform.tfvars for local Docker target overrides.
 
 node_count = 2
 

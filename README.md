@@ -1,8 +1,13 @@
-# iac-monitoring-agent
+# iac-monitoring-system
 
-這是一個輕量級 Infrastructure as Code 教學專案，用來示範 DevOps / SRE 常見流程：先用 Terraform 管理基礎設施資訊，再用 Ansible 佈署 Python monitoring agent、node_exporter、Prometheus 與 Grafana，最後用 Grafana dashboard 呈現監控結果。
+這是一個以 Infrastructure as Code 為核心的 monitoring system。它使用 Terraform 描述要被管理的 Docker 或 Linux server targets，使用 Ansible 派送 Python monitoring agent 與 Prometheus/Grafana 設定，最後由 Grafana 呈現服務與主機診斷資料。
 
-這份 lab 有兩種路線：Docker simulation mode 可以完全在本機練習 IaC 流程；VM lab mode 預設用 mock inventory 示範 Terraform 與 Ansible 的銜接，也可以打開 AWS EC2 模式，讓 Terraform 建立 VM，再交給 Ansible 部署 monitoring stack。
+這個 system 有兩種 target mode：
+
+- Docker Target Mode：Terraform 管理本機 Docker app containers，Ansible 部署 blackbox exporter、Prometheus、Grafana，適合快速展示資源新增、刪除、設定變更與外部探測監控。
+- Server Agent Mode：Terraform 管理既有 Linux servers 或 AWS EC2 inventory，Ansible 將 Python monitoring agent 派送到遠端 servers，Prometheus/Grafana 跑在 control node 並收集 agent metrics。
+
+Python agent 的目標類似獨立的 monitoring agent：在目標機器上收集 CPU、memory、zombie process、DNS/TCP check 等資料，寫入 log，並暴露 Prometheus `/metrics` endpoint。
 
 ## Portfolio Highlights
 
@@ -11,19 +16,19 @@
 - 用 Ansible 自動部署 blackbox exporter、Prometheus、Grafana dashboards。
 - 用 Grafana overview/details dashboards 觀察 target health、availability、latency、HTTP status code。
 - 自製 Python monitoring agent，寫入 log 並暴露 Prometheus `/metrics` endpoint。
-- VM lab 可用 mock inventory 練習，也可切換成 AWS EC2 provisioning flow。
+- Server Agent Mode 可接既有 Linux servers，也可切換成 AWS EC2 provisioning flow。
 - 內建 Makefile 與 GitHub Actions CI，檢查 Terraform、Ansible、Grafana JSON 和 Python agent。
 
 ## Architecture
 
 ```text
 Terraform -> Ansible -> Python Agent -> /var/log/monitor-agent.log
-                       -> node_exporter -> Prometheus -> Grafana Dashboard
+                       -> /metrics -> Prometheus -> Grafana Dashboard
 ```
 
 ```mermaid
 flowchart LR
-  subgraph Docker_Lab["Docker Simulation Mode"]
+  subgraph Docker_Mode["Docker Target Mode"]
     TFD["Terraform\nDocker provider"] --> APP["HTTP app containers"]
     TFD --> INV["Generated Ansible inventory/group vars"]
     INV --> ANSD["Ansible local playbook"]
@@ -35,60 +40,57 @@ flowchart LR
     GRAFD --> PROMD
   end
 
-  subgraph VM_Lab["VM / AWS Mode"]
-    TFV["Terraform\nmock inventory or AWS EC2"] --> VM["Linux VM nodes"]
+  subgraph Server_Agent_Mode["Server Agent Mode"]
+    TFV["Terraform\nmock inventory or AWS EC2"] --> server["Linux servers"]
     TFV --> INVV["Generated Ansible inventory"]
     INVV --> ANSV["Ansible SSH playbook"]
     ANSV --> AGENT["Python monitor-agent\nlogs + /metrics"]
-    ANSV --> NODE["node_exporter"]
-    ANSV --> PROMV["Prometheus"]
-    ANSV --> GRAFV["Grafana"]
-    PROMV --> NODE
+    INVV --> STACK["Ansible local stack play"]
+    STACK --> PROMV["Prometheus on control node"]
+    STACK --> GRAFV["Grafana on control node"]
     PROMV --> AGENT
     GRAFV --> PROMV
   end
 ```
 
-- Terraform：管理節點清單、網段資訊，輸出 VM IP，並產生 `ansible/inventory.ini`
-- Ansible：安裝 Python 套件、複製 agent/config/service，啟用 systemd，部署 Docker containers
+- Terraform：管理節點清單，輸出 server IP，並產生 `ansible/inventory.ini`
+- Ansible：對遠端 server 安裝 Python agent，並在 control node 部署 Prometheus/Grafana containers
 - Python Agent：檢查 CPU、memory、zombie process、DNS、TCP connectivity，並暴露 Prometheus metrics
-- node_exporter：輸出 Linux host metrics 給 Prometheus
-- Prometheus：定期 scrape node_exporter metrics
-- Grafana：自動 provision Prometheus datasource 與 lab dashboard
+- Prometheus：定期 scrape monitor-agent metrics
+- Grafana：自動 provision Prometheus datasource 與 system dashboard
 - systemd：開機自動啟動，失敗時自動重啟
 - Python venv：agent dependencies 安裝在 `/opt/monitor-agent/venv`，避免污染系統 Python
 
 ## Features
 
-- Automated provisioning interface：Terraform 統一維護 lab 節點資料與輸出
+- Automated provisioning interface：Terraform 統一維護 system target 資料與輸出
 - Configuration management：Ansible 重複佈署不會破壞既有狀態
 - Monitoring & diagnostics：CPU、memory、zombie process、DNS、TCP check
 - Failure classification：DNS resolution error、TCP timeout、connection refused、generic socket error
 - Logging：使用 Python logging 寫入 `/var/log/monitor-agent.log`
-- Grafana dashboard：CPU、memory、disk、node up/down 狀態
+- Grafana dashboard：agent endpoint、CPU/memory sample、DNS/TCP check 狀態
 - Prometheus datasource provisioning：Grafana 啟動後自動連上 Prometheus
 - Bonus：YAML config、network retry、CLI override、systemd restart
 
 ## Repository Structure
 
 ```text
-labs/
+infra/
   docker/
     terraform/
       main.tf
       variables.tf
       outputs.tf
-  vm/
+  server/
     terraform/
       main.tf
       variables.tf
       outputs.tf
 ansible/
-  playbook.yml
-  docker-lab.yml
-  templates/prometheus.yml.j2
+  server-agent.yml
+  docker-target.yml
+  templates/server-prometheus.yml.j2
   files/grafana/
-  roles/
 agent/
   agent.py
   config.yml
@@ -102,27 +104,27 @@ README.md
 
 - Terraform >= 1.5
 - Ansible
-- Docker，用於 Docker simulation mode
-- VM lab mode 需要 1 到 2 台可 SSH 登入的 Linux VM，或 AWS credentials 來建立 EC2
-- Linux VM 上的 sudo 權限
-- VM 可以連 Docker image registry，例如 Docker Hub、Quay.io
+- Docker，用於 Docker Target Mode
+- Server Agent Mode 需要 1 到 5 台可 SSH 登入的 Linux servers，或 AWS credentials 來建立 EC2
+- Linux server 上的 sudo 權限
+- Control node 可以連 Docker image registry，例如 Docker Hub
 
-VM lab 預設不會建立 AWS 資源，只會用 mock inventory 展示流程。若要接既有 VM，先修改 [labs/vm/terraform/variables.tf](labs/vm/terraform/variables.tf) 裡的 `mock_vm_hosts`；若要建立 AWS EC2，請設定 `enable_aws_resources=true`、`aws_ami_id`、SSH key 與安全群組允許的 CIDR。
+Server Agent Mode 預設不會建立 AWS 資源，只會用 existing server inventory。若要接既有 server，先修改 [infra/server/terraform/variables.tf](infra/server/terraform/variables.tf) 裡的 `server_hosts`；若要建立 AWS EC2，請設定 `enable_aws_resources=true`、`aws_ami_id`、SSH key 與安全群組允許的 CIDR。
 
 可複製範例變數檔開始調整：
 
 ```bash
-cp labs/docker/terraform/terraform.tfvars.example labs/docker/terraform/terraform.tfvars
-cp labs/vm/terraform/terraform.tfvars.example labs/vm/terraform/terraform.tfvars
+cp infra/docker/terraform/terraform.tfvars.example infra/docker/terraform/terraform.tfvars
+cp infra/server/terraform/terraform.tfvars.example infra/server/terraform/terraform.tfvars
 ```
 
 ## Usage
 
-完整操作教學請看 [docs/lab-usage.zh-TW.md](docs/lab-usage.zh-TW.md)。
+完整操作教學請看 [docs/system-usage.zh-TW.md](docs/system-usage.zh-TW.md)。
 
 ### Fast Demo
 
-Docker simulation mode 是最適合履歷展示的路徑，整個流程可以在本機重跑：
+Docker Target Mode 是最適合履歷展示的路徑，整個流程可以在本機重跑：
 
 ```bash
 make docker-up
@@ -137,8 +139,8 @@ make docker-edit
 http://localhost:13000
 admin / admin
 Dashboards:
-- IaC Docker Lab Overview
-- IaC Docker Lab Details
+- IaC Docker Target Overview
+- IaC Docker Target Details
 ```
 
 驗證與清除：
@@ -148,12 +150,12 @@ make validate
 make docker-down
 ```
 
-### VM Lab Mode
+### Server Agent Mode
 
-預設模式只產生 Ansible inventory，不建立雲端資源：
+預設模式只產生 Ansible inventory，不建立雲端資源，適合既有 VMware / Linux servers：
 
 ```bash
-cd labs/vm/terraform
+cd infra/server/terraform
 terraform init
 terraform apply
 ```
@@ -161,7 +163,7 @@ terraform apply
 如果要真的建立 AWS EC2，請先確認 AWS credentials 已設定，再執行：
 
 ```bash
-cd labs/vm/terraform
+cd infra/server/terraform
 terraform init
 terraform apply \
   -var='enable_aws_resources=true' \
@@ -173,53 +175,60 @@ terraform apply \
 確認 Terraform output：
 
 ```bash
-terraform output vm_ip_addresses
+terraform output server_ip_addresses
 terraform output ansible_inventory_path
-terraform output lab_mode
+terraform output system_mode
 terraform output grafana_url
 terraform output prometheus_url
 ```
 
-用 Ansible 佈署 agent 與 monitoring stack：
+用 Ansible 佈署遠端 agent 與本機 monitoring stack：
 
 ```bash
 cd ../../..
-ansible-playbook -i ansible/inventory.ini ansible/playbook.yml
+make server-agent ANSIBLE_FLAGS="--ask-pass --ask-become-pass"
+make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
+
+如果你的 server 已經設定 SSH key，可以省略密碼參數：
+
+```bash
+make server-agent
+make server-stack ANSIBLE_FLAGS="--ask-become-pass"
+```
+
+正式環境建議改成 SSH key，避免把密碼寫進 inventory 或 repo。
 
 打開 Grafana：
 
 ```text
-URL: http://<第一台 VM IP>:3000
+URL: http://localhost:3000
 Username: admin
 Password: admin
-Dashboard: IaC Monitoring Lab Overview
-Agent Dashboard: IaC Agent Overview
+Dashboard: IaC Agent Overview
 ```
 
 Prometheus targets：
 
 ```text
-http://<第一台 VM IP>:9090/targets
+http://localhost:9090/targets
 Jobs:
-- node-exporter
 - monitor-agent
 ```
 
-在 Linux VM 上檢查服務：
+在 Linux server 上檢查 agent：
 
 ```bash
 sudo systemctl status monitor-agent
 sudo journalctl -u monitor-agent -n 50 --no-pager
 sudo tail -f /var/log/monitor-agent.log
 curl http://localhost:8000/metrics
-sudo docker ps
 ```
 
 如果有建立 AWS EC2，練習完請清除資源：
 
 ```bash
-cd labs/vm/terraform
+cd infra/server/terraform
 terraform destroy \
   -var='enable_aws_resources=true' \
   -var='aws_ami_id=ami-xxxxxxxxxxxxxxxxx' \
@@ -232,37 +241,37 @@ terraform destroy \
 python agent/agent.py --config agent/config.yml --log-file ./monitor-agent.log --once --disable-metrics
 ```
 
-### Docker Simulation Mode
+### Docker Target Mode
 
-如果你還沒有 VM，可以用 Docker 在本機模擬「新增、刪除、編輯、派送、監控」流程。
+如果你還沒有 server，可以用 Docker 在本機模擬「新增、刪除、編輯、派送、監控」流程。
 
 這個模式會做幾件事：
 
 - Terraform 建立 Docker network 和多個 HTTP app containers
-- Terraform 產生 `ansible/docker-lab-inventory.ini` 與 Ansible group vars
+- Terraform 產生 `ansible/docker-target-inventory.ini` 與 Ansible group vars
 - Ansible 部署 blackbox exporter、Prometheus、Grafana containers
 - Grafana overview dashboard 監控 app up/down 和 HTTP latency
 - Grafana details dashboard 顯示 failed targets、availability、latency table 和 HTTP status code
 
-啟動 Docker lab：
+啟動 Docker target mode：
 
 ```bash
-cd labs/docker/terraform
+cd infra/docker/terraform
 terraform init
 terraform apply
 
 cd ../../..
-ansible-playbook -i ansible/docker-lab-inventory.ini ansible/docker-lab.yml
+ansible-playbook -i ansible/docker-target-inventory.ini ansible/docker-target.yml
 ```
 
-打開 Docker lab UI：
+打開 Docker target mode UI：
 
 ```text
 Grafana: http://localhost:13000
 Username: admin
 Password: admin
-Dashboard: IaC Docker Lab Overview
-Details: IaC Docker Lab Details
+Dashboard: IaC Docker Target Overview
+Details: IaC Docker Target Details
 
 Prometheus: http://localhost:19090
 ```
@@ -270,34 +279,34 @@ Prometheus: http://localhost:19090
 模擬新增資源：
 
 ```bash
-cd labs/docker/terraform
+cd infra/docker/terraform
 terraform apply -var='node_count=3'
 
 cd ../../..
-ansible-playbook -i ansible/docker-lab-inventory.ini ansible/docker-lab.yml
+ansible-playbook -i ansible/docker-target-inventory.ini ansible/docker-target.yml
 ```
 
 模擬刪除資源：
 
 ```bash
-cd labs/docker/terraform
+cd infra/docker/terraform
 terraform apply -var='node_count=1'
 
 cd ../../..
-ansible-playbook -i ansible/docker-lab-inventory.ini ansible/docker-lab.yml
+ansible-playbook -i ansible/docker-target-inventory.ini ansible/docker-target.yml
 ```
 
 模擬編輯資源：
 
 ```bash
-cd labs/docker/terraform
+cd infra/docker/terraform
 terraform apply -var='app_message_prefix=updated by terraform'
 ```
 
-清掉 Docker lab：
+清掉 Docker target mode：
 
 ```bash
-cd labs/docker/terraform
+cd infra/docker/terraform
 terraform destroy
 docker rm -f iac-lab-blackbox iac-lab-prometheus iac-lab-grafana
 ```
@@ -320,39 +329,6 @@ make docker-down
 - TCP internal：`192.168.1.254:443`
 - TCP external：`google.com:443`
 
-## What This Lab Proves
-
-這份 lab 可以拿來證明你至少做過以下事情：
-
-- Terraform：用 variables 管理 lab nodes，產生 Ansible inventory，輸出 Grafana/Prometheus URLs
-- AWS provider：可選擇建立 EC2、security group、key pair，再交給 Ansible 接手設定
-- Ansible：用 playbook 安裝 OS packages、部署 config、建立 systemd service、啟動 containers
-- Linux service：用 systemd 管理 Python monitoring agent
-- Custom metrics：Python agent 暴露 Prometheus `/metrics`，Grafana 可直接呈現 agent checks
-- Prometheus：從 Terraform/Ansible 管理的節點 scrape node_exporter metrics
-- Grafana：用 provisioning 自動建立 datasource 和 dashboard，不靠手動點 UI
-- Troubleshooting：可用 `journalctl`、`docker ps`、Prometheus targets、Grafana panels 查問題
-- Docker simulation：不用 VM 也能用 Terraform 管理容器資源，並用 Ansible 派送監控 stack
-- CI validation：用 GitHub Actions 檢查 Terraform fmt/validate、Ansible syntax、Grafana dashboard JSON 和 Python syntax
-
-建議 VM demo 流程：
-
-1. 修改 `labs/vm/terraform/variables.tf` 的 mock VM IP，或設定 AWS EC2 相關變數
-2. 執行 `terraform apply`，展示產生的 `ansible/inventory.ini`
-3. 執行 `ansible-playbook -i ansible/inventory.ini ansible/playbook.yml`
-4. 打開 Prometheus `/targets`，確認 node-exporter target 是 up
-5. 打開 Grafana dashboard，展示 CPU、memory、disk、node status
-6. 停掉其中一台 VM 或防火牆擋 `9100`，展示 Prometheus/Grafana 狀態變化
-
-建議 Docker demo 流程：
-
-1. `make docker-up` 建立 app containers 與 monitoring stack
-2. 打開 Grafana overview，看 target count 和 health
-3. `make docker-scale NODE_COUNT=3` 展示新增資源
-4. `make docker-scale NODE_COUNT=1` 展示刪除資源
-5. `docker stop iac-lab-app-node-01` 展示 target down
-6. 切到 details dashboard，看 failed targets、availability 和 latency table
-
 ## Quality Gates
 
 本專案提供本機與 CI 共用的驗證入口：
@@ -363,8 +339,8 @@ make validate
 
 檢查內容：
 
-- Terraform fmt / validate for Docker lab and VM lab
-- Ansible syntax check for Docker lab and VM lab playbooks
+- Terraform fmt / validate for Docker target mode and Server Agent Mode
+- Ansible syntax check for Docker target mode and Server Agent Mode playbooks
 - Grafana dashboard JSON validation
 - Python syntax check for `agent/agent.py`
 

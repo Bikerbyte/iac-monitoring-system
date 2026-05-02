@@ -8,7 +8,6 @@
     agent_config_dir: /etc/monitor-agent
     agent_venv_dir: /opt/monitor-agent/venv
     agent_log_file: /var/log/monitor-agent.log
-    node_exporter_image: quay.io/prometheus/node-exporter:v1.8.2
 
   tasks:
     - name: Install OS packages for Python agent
@@ -18,18 +17,6 @@
           - python3-pip
           - python3-venv
         state: present
-
-    - name: Install Docker runtime for exporter container
-      ansible.builtin.package:
-        name:
-          - docker.io
-        state: present
-
-    - name: Enable and start Docker
-      ansible.builtin.service:
-        name: docker
-        enabled: true
-        state: started
 
     - name: Create agent application directory
       ansible.builtin.file:
@@ -107,29 +94,6 @@
         state: started
         daemon_reload: true
 
-    - name: Check node_exporter container state
-      ansible.builtin.shell: |
-        set -o pipefail
-        docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' node-exporter 2>/dev/null || true
-      args:
-        executable: /bin/bash
-      register: node_exporter_state
-      changed_when: false
-
-    - name: Start node_exporter container
-      ansible.builtin.shell: |
-        docker rm -f node-exporter >/dev/null 2>&1 || true
-        docker run -d \
-          --name node-exporter \
-          --restart unless-stopped \
-          --pid host \
-          -p 9100:9100 \
-          -v /:/host:ro,rslave \
-          "{{ node_exporter_image }}" \
-          --path.rootfs=/host
-      when: node_exporter_state.stdout != "true"
-      changed_when: true
-
   handlers:
     - name: Reload systemd
       ansible.builtin.systemd:
@@ -152,6 +116,18 @@
     grafana_admin_password: admin
 
   tasks:
+    - name: Install Docker runtime for local monitoring stack
+      ansible.builtin.package:
+        name:
+          - docker.io
+        state: present
+
+    - name: Enable and start Docker on control node
+      ansible.builtin.service:
+        name: docker
+        enabled: true
+        state: started
+
     - name: Create monitoring stack directories
       ansible.builtin.file:
         path: "{{ item }}"
@@ -169,7 +145,7 @@
 
     - name: Deploy Prometheus scrape config
       ansible.builtin.template:
-        src: templates/prometheus.yml.j2
+        src: templates/server-prometheus.yml.j2
         dest: "{{ monitoring_stack_dir }}/prometheus.yml"
         owner: root
         group: root
@@ -194,7 +170,7 @@
         mode: "0644"
       notify: Restart Grafana
 
-    - name: Deploy Grafana lab dashboards
+    - name: Deploy Grafana system dashboards
       ansible.builtin.copy:
         src: "{{ item }}"
         dest: "{{ monitoring_stack_dir }}/grafana/dashboards/{{ item | basename }}"

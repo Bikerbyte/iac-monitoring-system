@@ -35,19 +35,17 @@ locals {
     }
   ]
 
-  mock_hosts     = slice(var.mock_vm_hosts, 0, var.node_count)
-  selected_hosts = var.enable_aws_resources ? local.aws_hosts : local.mock_hosts
-  stack_host     = local.selected_hosts[0]
+  existing_hosts = slice(var.server_hosts, 0, var.node_count)
+  selected_hosts = var.enable_aws_resources ? local.aws_hosts : local.existing_hosts
 
   inventory_lines = [
     for host in local.selected_hosts :
-    format(
-      "%s ansible_host=%s ansible_user=%s ansible_ssh_private_key_file=%s",
+    trimspace(join(" ", compact([
       host.name,
-      host.ip_address,
-      host.ansible_user,
-      host.ssh_private_key_file
-    )
+      "ansible_host=${host.ip_address}",
+      "ansible_user=${host.ansible_user}",
+      host.ssh_private_key_file != "" ? "ansible_ssh_private_key_file=${host.ssh_private_key_file}" : "",
+    ])))
   ]
 }
 
@@ -62,7 +60,7 @@ resource "aws_security_group" "monitoring_lab" {
   count = var.enable_aws_resources ? 1 : 0
 
   name        = var.aws_security_group_name
-  description = "Allow SSH and monitoring lab ports"
+  description = "Allow SSH and monitoring system ports"
   vpc_id      = var.aws_vpc_id
 
   ingress {
@@ -90,14 +88,6 @@ resource "aws_security_group" "monitoring_lab" {
   }
 
   ingress {
-    description = "node_exporter"
-    from_port   = 9100
-    to_port     = 9100
-    protocol    = "tcp"
-    cidr_blocks = var.allowed_monitoring_cidr_blocks
-  }
-
-  ingress {
     description = "monitor-agent Prometheus metrics"
     from_port   = 8000
     to_port     = 8000
@@ -115,7 +105,7 @@ resource "aws_security_group" "monitoring_lab" {
 
   tags = {
     Name    = var.aws_security_group_name
-    Project = "iac-monitoring-lab"
+    Project = "iac-monitoring-system"
   }
 }
 
@@ -136,18 +126,18 @@ resource "aws_instance" "monitor_node" {
 
   tags = {
     Name    = format("%s-%02d", var.aws_instance_name_prefix, count.index + 1)
-    Project = "iac-monitoring-lab"
+    Project = "iac-monitoring-system"
   }
 }
 
 # Terraform owns the desired node list and generates the Ansible inventory.
-# By default this lab runs in safe mock mode. Set enable_aws_resources=true
+# By default this system runs in safe mock mode. Set enable_aws_resources=true
 # when you are ready to create real EC2 instances.
 resource "local_file" "ansible_inventory" {
   filename = "${path.module}/../../../ansible/inventory.ini"
   content = format("%s\n", join("\n", concat(
     ["[monitoring_agents]"],
     local.inventory_lines,
-    ["", "[monitoring_stack]", local.stack_host.name],
+    ["", "[monitoring_stack]", "localhost ansible_connection=local"],
   )))
 }

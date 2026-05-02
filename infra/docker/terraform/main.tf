@@ -29,7 +29,7 @@ locals {
 }
 
 resource "docker_network" "lab" {
-  name = var.lab_network_name
+  name = var.docker_network_name
 }
 
 resource "docker_image" "app" {
@@ -59,20 +59,20 @@ resource "docker_container" "app_node" {
 }
 
 resource "local_file" "ansible_inventory" {
-  filename = "${path.module}/../../../ansible/docker-lab-inventory.ini"
+  filename = "${path.module}/../../../ansible/docker-target-inventory.ini"
   content  = <<-EOT
-    [docker_lab_stack]
+    [docker_target_stack]
     localhost ansible_connection=local
   EOT
 }
 
 resource "local_file" "ansible_group_vars" {
-  filename = "${path.module}/../../../ansible/group_vars/docker_lab_stack/generated.yml"
+  filename = "${path.module}/../../../ansible/group_vars/docker_target_stack/generated.yml"
   content = yamlencode({
-    iac_docker_lab_network         = docker_network.lab.name
-    iac_docker_lab_app_targets     = local.app_targets
-    iac_docker_lab_grafana_port    = var.grafana_port
-    iac_docker_lab_prometheus_port = var.prometheus_port
-    iac_docker_lab_blackbox_port   = var.blackbox_port
+    iac_docker_target_network         = docker_network.lab.name
+    iac_docker_target_app_targets     = local.app_targets
+    iac_docker_target_grafana_port    = var.grafana_port
+    iac_docker_target_prometheus_port = var.prometheus_port
+    iac_docker_target_blackbox_port   = var.blackbox_port
   })
 }

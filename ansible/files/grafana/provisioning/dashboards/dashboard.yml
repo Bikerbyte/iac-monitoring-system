@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: iac-lab
+  - name: iac-monitoring-system
     orgId: 1
-    folder: IaC Monitoring Lab
+    folder: IaC Monitoring System
     type: file
     disableDeletion: false
     editable: true
