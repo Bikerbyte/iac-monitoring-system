@@ -38,21 +38,3 @@ variable "host_http_base_port" {
   type        = number
   default     = 18080
 }
-
-variable "grafana_port" {
-  description = "Host port for the Docker target Grafana container."
-  type        = number
-  default     = 13000
-}
-
-variable "prometheus_port" {
-  description = "Host port for the Docker target Prometheus container."
-  type        = number
-  default     = 19090
-}
-
-variable "blackbox_port" {
-  description = "Host port for the Docker target blackbox exporter container."
-  type        = number
-  default     = 19115
-}

@@ -1,6 +1,7 @@
 ---
 - name: Deploy monitoring agent
   hosts: monitoring_agents
+  gather_facts: false
   become: true
 
   vars:
@@ -106,21 +107,29 @@
 
 - name: Deploy Prometheus and Grafana stack
   hosts: monitoring_stack
+  gather_facts: false
   become: true
 
   vars:
     monitoring_stack_dir: /opt/iac-monitoring-stack
     prometheus_image: prom/prometheus:v2.54.1
     grafana_image: grafana/grafana:11.2.0
+    blackbox_image: prom/blackbox-exporter:v0.25.0
     grafana_admin_user: admin
     grafana_admin_password: admin
 
   tasks:
-    - name: Install Docker runtime for local monitoring stack
-      ansible.builtin.package:
-        name:
-          - docker.io
-        state: present
+    - name: Check Docker CLI on control node
+      ansible.builtin.shell: command -v docker
+      register: docker_cli
+      changed_when: false
+      failed_when: false
+      become: false
+
+    - name: Require Docker on control node
+      ansible.builtin.fail:
+        msg: "Docker is required on the control node before deploying the local Prometheus/Grafana stack."
+      when: docker_cli.rc != 0
 
     - name: Enable and start Docker on control node
       ansible.builtin.service:
@@ -180,10 +189,57 @@
       loop: "{{ query('ansible.builtin.fileglob', playbook_dir + '/files/grafana/dashboards/*.json') }}"
       notify: Restart Grafana
 
+    - name: Deploy Docker target Grafana dashboards
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ monitoring_stack_dir }}/grafana/dashboards/{{ item | basename }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop: "{{ query('ansible.builtin.fileglob', playbook_dir + '/files/docker-target/grafana/dashboards/*.json') }}"
+      notify: Restart Grafana
+
     - name: Ensure monitoring Docker network exists
       ansible.builtin.shell: |
         docker network inspect iac-monitoring >/dev/null 2>&1 || docker network create iac-monitoring
       changed_when: false
+
+    - name: Ensure Docker target network exists when Docker targets are configured
+      ansible.builtin.shell: |
+        docker network inspect "{{ iac_docker_target_network }}" >/dev/null 2>&1 || docker network create "{{ iac_docker_target_network }}"
+      changed_when: false
+      when: (iac_docker_target_app_targets | default([])) | length > 0
+
+    - name: Check blackbox exporter container state
+      ansible.builtin.shell: |
+        docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' blackbox 2>/dev/null || true
+      register: blackbox_state
+      changed_when: false
+      when: (iac_docker_target_app_targets | default([])) | length > 0
+
+    - name: Start blackbox exporter container for Docker targets
+      ansible.builtin.shell: |
+        docker rm -f blackbox >/dev/null 2>&1 || true
+        docker run -d \
+          --name blackbox \
+          --restart unless-stopped \
+          --network iac-monitoring \
+          "{{ blackbox_image }}"
+        docker network connect "{{ iac_docker_target_network }}" blackbox >/dev/null 2>&1 || true
+      when:
+        - (iac_docker_target_app_targets | default([])) | length > 0
+        - blackbox_state is defined
+        - blackbox_state.stdout != "true"
+      changed_when: true
+
+    - name: Ensure blackbox exporter is attached to Docker target network
+      ansible.builtin.shell: |
+        docker network connect "{{ iac_docker_target_network }}" blackbox >/dev/null 2>&1 || true
+      changed_when: false
+      when:
+        - (iac_docker_target_app_targets | default([])) | length > 0
+        - blackbox_state is defined
+        - blackbox_state.stdout == "true"
 
     - name: Check Prometheus container state
       ansible.builtin.shell: |

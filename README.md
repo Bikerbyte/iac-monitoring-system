@@ -4,7 +4,7 @@
 
 這個 system 有兩種 target mode：
 
-- Docker Target Mode：Terraform 管理本機 Docker app containers，Ansible 部署 blackbox exporter、Prometheus、Grafana，適合快速展示資源新增、刪除、設定變更與外部探測監控。
+- Docker Target Mode：Terraform 管理本機 Docker app containers，central Prometheus 透過 blackbox exporter 探測 HTTP health，適合快速展示資源新增、刪除、設定變更與外部探測監控。
 - Server Agent Mode：Terraform 管理既有 Linux servers 或 AWS EC2 inventory，Ansible 將 Python monitoring agent 派送到遠端 servers，Prometheus/Grafana 跑在 control node 並收集 agent metrics。
 
 Python agent 的目標類似獨立的 monitoring agent：在目標機器上收集 CPU、memory、zombie process、DNS/TCP check 等資料，寫入 log，並暴露 Prometheus `/metrics` endpoint。
@@ -13,7 +13,7 @@ Python agent 的目標類似獨立的 monitoring agent：在目標機器上收�
 
 - 用 Terraform 管理 Docker-based simulated app nodes，支援新增、刪除和設定變更。
 - 用 Terraform 產生 Ansible inventory 與 group vars，讓 Ansible 根據 desired state 更新 Prometheus targets。
-- 用 Ansible 自動部署 blackbox exporter、Prometheus、Grafana dashboards。
+- 用 Ansible 自動部署 central Prometheus/Grafana、blackbox exporter 與 dashboards。
 - 用 Grafana overview/details dashboards 觀察 target health、availability、latency、HTTP status code。
 - 自製 Python monitoring agent，寫入 log 並暴露 Prometheus `/metrics` endpoint。
 - Server Agent Mode 可接既有 Linux servers，也可切換成 AWS EC2 provisioning flow。
@@ -30,11 +30,11 @@ Terraform -> Ansible -> Python Agent -> /var/log/monitor-agent.log
 flowchart LR
   subgraph Docker_Mode["Docker Target Mode"]
     TFD["Terraform\nDocker provider"] --> APP["HTTP app containers"]
-    TFD --> INV["Generated Ansible inventory/group vars"]
-    INV --> ANSD["Ansible local playbook"]
-    ANSD --> BB["Blackbox exporter"]
-    ANSD --> PROMD["Prometheus"]
-    ANSD --> GRAFD["Grafana dashboards"]
+    TFD --> VARS["Generated monitoring stack vars"]
+    VARS --> STACKD["Central monitoring stack"]
+    STACKD --> BB["Blackbox exporter"]
+    STACKD --> PROMD["Prometheus"]
+    STACKD --> GRAFD["Grafana dashboards"]
     PROMD --> BB
     BB --> APP
     GRAFD --> PROMD
@@ -54,7 +54,7 @@ flowchart LR
 ```
 
 - Terraform：管理節點清單，輸出 server IP，並產生 `ansible/inventory.ini`
-- Ansible：對遠端 server 安裝 Python agent，並在 control node 部署 Prometheus/Grafana containers
+- Ansible：對遠端 server 安裝 Python agent，並在 control node 部署 single central Prometheus/Grafana stack
 - Python Agent：檢查 CPU、memory、zombie process、DNS、TCP connectivity，並暴露 Prometheus metrics
 - Prometheus：定期 scrape monitor-agent metrics
 - Grafana：自動 provision Prometheus datasource 與 system dashboard
@@ -88,7 +88,6 @@ infra/
       outputs.tf
 ansible/
   server-agent.yml
-  docker-target.yml
   templates/server-prometheus.yml.j2
   files/grafana/
 agent/
@@ -127,16 +126,16 @@ cp infra/server/terraform/terraform.tfvars.example infra/server/terraform/terraf
 Docker Target Mode 是最適合履歷展示的路徑，整個流程可以在本機重跑：
 
 ```bash
-make docker-up
-make docker-scale NODE_COUNT=3
-make docker-scale NODE_COUNT=1
-make docker-edit
+make docker-up ANSIBLE_FLAGS="--ask-become-pass"
+make docker-scale NODE_COUNT=3 ANSIBLE_FLAGS="--ask-become-pass"
+make docker-scale NODE_COUNT=1 ANSIBLE_FLAGS="--ask-become-pass"
+make docker-edit ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 打開 Grafana：
 
 ```text
-http://localhost:13000
+http://localhost:3000
 admin / admin
 Dashboards:
 - IaC Docker Target Overview
@@ -147,7 +146,7 @@ Dashboards:
 
 ```bash
 make validate
-make docker-down
+make docker-down ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 ### Server Agent Mode
@@ -248,8 +247,8 @@ python agent/agent.py --config agent/config.yml --log-file ./monitor-agent.log -
 這個模式會做幾件事：
 
 - Terraform 建立 Docker network 和多個 HTTP app containers
-- Terraform 產生 `ansible/docker-target-inventory.ini` 與 Ansible group vars
-- Ansible 部署 blackbox exporter、Prometheus、Grafana containers
+- Terraform 產生 `ansible/group_vars/monitoring_stack/docker_targets.yml` 與 Ansible group vars
+- Ansible central stack 部署 blackbox exporter，並讓同一套 Prometheus/Grafana 監控 Docker targets
 - Grafana overview dashboard 監控 app up/down 和 HTTP latency
 - Grafana details dashboard 顯示 failed targets、availability、latency table 和 HTTP status code
 
@@ -261,19 +260,19 @@ terraform init
 terraform apply
 
 cd ../../..
-ansible-playbook -i ansible/docker-target-inventory.ini ansible/docker-target.yml
+make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 打開 Docker target mode UI：
 
 ```text
-Grafana: http://localhost:13000
+Grafana: http://localhost:3000
 Username: admin
 Password: admin
 Dashboard: IaC Docker Target Overview
 Details: IaC Docker Target Details
 
-Prometheus: http://localhost:19090
+Prometheus: http://localhost:9090
 ```
 
 模擬新增資源：
@@ -283,7 +282,7 @@ cd infra/docker/terraform
 terraform apply -var='node_count=3'
 
 cd ../../..
-ansible-playbook -i ansible/docker-target-inventory.ini ansible/docker-target.yml
+make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 模擬刪除資源：
@@ -293,7 +292,7 @@ cd infra/docker/terraform
 terraform apply -var='node_count=1'
 
 cd ../../..
-ansible-playbook -i ansible/docker-target-inventory.ini ansible/docker-target.yml
+make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 模擬編輯資源：
@@ -308,15 +307,18 @@ terraform apply -var='app_message_prefix=updated by terraform'
 ```bash
 cd infra/docker/terraform
 terraform destroy
-docker rm -f iac-lab-blackbox iac-lab-prometheus iac-lab-grafana
+cd ../../..
+rm -f ansible/group_vars/monitoring_stack/docker_targets.yml
+docker rm -f blackbox iac-lab-blackbox iac-lab-prometheus iac-lab-grafana
+make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 Makefile 版本：
 
 ```bash
-make docker-up
-make docker-scale NODE_COUNT=3
-make docker-down
+make docker-up ANSIBLE_FLAGS="--ask-become-pass"
+make docker-scale NODE_COUNT=3 ANSIBLE_FLAGS="--ask-become-pass"
+make docker-down ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 ## Agent Config
