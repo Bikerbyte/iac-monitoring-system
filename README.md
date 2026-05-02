@@ -327,7 +327,7 @@ make docker-down ANSIBLE_FLAGS="--ask-become-pass"
 
 預設檢查：
 
-- DNS：`www.graid.com`
+- DNS：`www.github.com`
 - TCP internal：`192.168.1.254:443`
 - TCP external：`google.com:443`
 
