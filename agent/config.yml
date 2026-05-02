@@ -9,8 +9,8 @@ agent:
 
 network:
   dns_targets:
-    - name: graid-website
-      host: www.graid.com
+    - name: github-website
+      host: www.github.com
 
   tcp_targets:
     - name: internal-gateway
