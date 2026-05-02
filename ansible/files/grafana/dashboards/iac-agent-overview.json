@@ -347,7 +347,8 @@
       "targets": [
         {
           "expr": "monitor_agent_network_check_success",
-          "legendFormat": "{{instance}} {{type}}/{{name}}",
+          "instant": true,
+          "legendFormat": "{{instance}} {{type}}/{{name}} {{host}}:{{port}}",
           "refId": "A"
         }
       ],
@@ -554,7 +555,7 @@
           "expr": "monitor_agent_network_check_success",
           "format": "table",
           "instant": true,
-          "legendFormat": "{{instance}} {{type}}/{{name}}",
+          "legendFormat": "{{instance}} {{type}}/{{name}} {{host}}:{{port}}",
           "refId": "A"
         }
       ],
