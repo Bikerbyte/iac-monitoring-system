@@ -17,6 +17,7 @@ monitor-agent.stdout
 .terraform.lock.hcl
 terraform.tfvars
 terraform.tfvars.json
+terraform.tfvars.aws
 *.auto.tfvars
 *.auto.tfvars.json
 crash.log

@@ -1,0 +1,29 @@
+# Copy this file to terraform.tfvars.aws before running AWS make targets:
+#
+#   cp infra/server/terraform/terraform.tfvars.aws.example infra/server/terraform/terraform.tfvars.aws
+#   make server-aws-plan
+#
+# Keep terraform.tfvars.aws local. It may contain your current public IP,
+# preferred VPC/subnet, and SSH key paths.
+
+node_count           = 1
+enable_aws_resources = true
+
+aws_region        = "ap-northeast-1"
+aws_ami_id        = "ami-0555235cac92fff3f" # Ubuntu 24.04 LTS amd64, ap-northeast-1
+aws_instance_type = "t3.micro"
+
+ansible_user         = "ubuntu"
+ssh_public_key_file  = "~/.ssh/id_rsa.pub"
+ssh_private_key_file = "~/.ssh/id_rsa"
+
+# Use your own VPC/subnet. The values below came from the default VPC used in
+# the first AWS smoke test for this lab.
+aws_vpc_id    = "vpc-0ded4d396050e8f97"
+aws_subnet_id = "subnet-0f78ad2fac57a4d7f"
+
+# Replace with your current public IP before applying.
+# Example:
+#   curl -fsS https://checkip.amazonaws.com
+allowed_ssh_cidr_blocks        = ["180.177.202.27/32"]
+allowed_monitoring_cidr_blocks = ["180.177.202.27/32"] # Grafana 3000, Prometheus 9090, agent 8000

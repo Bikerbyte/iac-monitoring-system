@@ -9,6 +9,7 @@
     agent_config_dir: /etc/monitor-agent
     agent_venv_dir: /opt/monitor-agent/venv
     agent_log_file: /var/log/monitor-agent.log
+    agent_config_src: ../agent/config.yml
 
   tasks:
     - name: Update apt package cache on Debian based hosts
@@ -53,7 +54,7 @@
 
     - name: Deploy monitoring agent config
       ansible.builtin.copy:
-        src: ../agent/config.yml
+        src: "{{ agent_config_src }}"
         dest: "{{ agent_config_dir }}/config.yml"
         owner: root
         group: root
