@@ -94,6 +94,9 @@ ansible/
 agent/
   agent.py
   config.yml
+  config.aws.yml
+scripts/
+  smoke-server.sh
 systemd/
   monitor-agent.service
 AGENTS.md
@@ -123,10 +126,24 @@ cp infra/server/terraform/terraform.tfvars.example infra/server/terraform/terraf
 
 完整操作教學請看 [docs/system-usage.zh-TW.md](docs/system-usage.zh-TW.md)。
 
+AWS EC2 demo flow 可以用 Makefile 跑，避免手動貼一長串 Terraform variables：
+
+```bash
+cp infra/server/terraform/terraform.tfvars.aws.example infra/server/terraform/terraform.tfvars.aws
+# 編輯 terraform.tfvars.aws，確認 AMI、VPC、subnet、CIDR、SSH key
+make server-aws-plan
+make server-aws-apply
+make server-aws-deploy ANSIBLE_FLAGS="--ask-become-pass"
+make smoke-aws
+make server-aws-destroy
+```
+
 
 ## Agent Config
 
 [agent/config.yml](agent/config.yml) 集中管理檢查週期、retry、log file 與 network target。
+
+AWS EC2 demo 會用 [agent/config.aws.yml](agent/config.aws.yml)，把 internal TCP check 改成 EC2 metadata endpoint，避免在 AWS 上檢查本地 LAN gateway 造成誤判。
 
 agent log 會以 JSON event 格式輸出，方便用 `journalctl`、`tail` 或集中式 log collector 搜尋：
 

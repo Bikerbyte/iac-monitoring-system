@@ -371,14 +371,33 @@ terraform apply
 terraform output
 ```
 
-如果要真的建立 AWS EC2，可以用 CLI 變數覆蓋：
+如果要真的建立 AWS EC2，建議用 AWS 專用 tfvars 檔，避免每次貼一長串 CLI 變數：
 
 ```bash
-terraform apply \
-  -var='enable_aws_resources=true' \
-  -var='aws_ami_id=ami-xxxxxxxxxxxxxxxxx' \
-  -var='ssh_public_key_file=~/.ssh/id_rsa.pub' \
-  -var='ssh_private_key_file=~/.ssh/id_rsa'
+cd /home/ianhsu/Projects/iac-monitoring-system
+cp infra/server/terraform/terraform.tfvars.aws.example infra/server/terraform/terraform.tfvars.aws
+```
+
+編輯 `infra/server/terraform/terraform.tfvars.aws`，確認：
+
+- `aws_ami_id`
+- `aws_vpc_id`
+- `aws_subnet_id`
+- `ssh_public_key_file`
+- `ssh_private_key_file`
+- `allowed_ssh_cidr_blocks`
+- `allowed_monitoring_cidr_blocks`
+
+建立前先看 plan：
+
+```bash
+make server-aws-plan
+```
+
+確認只會建立預期的 EC2、key pair、security group、inventory 後再 apply：
+
+```bash
+make server-aws-apply
 ```
 
 ### 部署到 Linux servers
@@ -394,6 +413,12 @@ make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```bash
 make server-agent
 make server-stack ANSIBLE_FLAGS="--ask-become-pass"
+```
+
+如果是 AWS EC2 demo，建議用 AWS agent config，避免 EC2 上檢查本地 LAN gateway：
+
+```bash
+make server-aws-deploy ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 ### Server Agent 模式驗證
@@ -436,14 +461,25 @@ sudo tail -n 20 /var/log/monitor-agent.log | jq -r '.event'
 - `network_check`
 - `check_retry_failed`
 
+也可以直接跑完整 smoke check：
+
+```bash
+make smoke-server
+```
+
+這個 target 會檢查：
+
+- Ansible 可以連到 monitoring agents
+- `monitor-agent` systemd service 是 active
+- 每台 server 的 `http://127.0.0.1:8000/metrics` 回 200
+- `/var/log/monitor-agent.log` 是可解析的 JSON log
+- Prometheus / Grafana health OK
+- Prometheus 看到 `monitor-agent` target 是 up
+
 ### 清除 AWS Server Agent Mode
 
 如果你有打開 `enable_aws_resources=true` 建立 EC2，練習完請刪除，避免產生費用：
 
 ```bash
-cd infra/server/terraform
-terraform destroy \
-  -var='enable_aws_resources=true' \
-  -var='aws_ami_id=ami-xxxxxxxxxxxxxxxxx' \
-  -var='ssh_public_key_file=~/.ssh/id_rsa.pub'
+make server-aws-destroy
 ```
