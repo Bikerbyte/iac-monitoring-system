@@ -67,7 +67,8 @@ flowchart LR
 - Configuration management：Ansible 重複佈署不會破壞既有狀態
 - Monitoring & diagnostics：CPU、memory、zombie process、DNS、TCP check
 - Failure classification：DNS resolution error、TCP timeout、connection refused、generic socket error
-- Logging：使用 Python logging 寫入 `/var/log/monitor-agent.log`
+- Structured logging：agent 以 JSON event 寫入 `/var/log/monitor-agent.log`，同時輸出到 journald
+- Log lifecycle：Ansible 會派送 logrotate 設定，避免長跑後 log 無限制成長
 - Grafana dashboard：agent endpoint、CPU/memory sample、DNS/TCP check 狀態
 - Prometheus datasource provisioning：Grafana 啟動後自動連上 Prometheus
 - Bonus：YAML config、network retry、CLI override、systemd restart
@@ -95,6 +96,7 @@ agent/
   config.yml
 systemd/
   monitor-agent.service
+AGENTS.md
 requirements.txt
 README.md
 ```
@@ -125,6 +127,12 @@ cp infra/server/terraform/terraform.tfvars.example infra/server/terraform/terraf
 ## Agent Config
 
 [agent/config.yml](agent/config.yml) 集中管理檢查週期、retry、log file 與 network target。
+
+agent log 會以 JSON event 格式輸出，方便用 `journalctl`、`tail` 或集中式 log collector 搜尋：
+
+```json
+{"attempts":1,"detail":"connected","event":"network_check","failure_type":null,"host":"monitor-node-01","latency_ms":12.4,"level":"INFO","logged_at":"2026-05-05T20:10:00+0800","name":"external-google","ok":true,"port":443,"status":"ok","target_host":"google.com","type":"tcp","version":"1.1.0"}
+```
 
 預設檢查：
 

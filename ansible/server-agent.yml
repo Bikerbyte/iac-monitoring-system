@@ -1,7 +1,7 @@
 ---
 - name: Deploy monitoring agent
   hosts: monitoring_agents
-  gather_facts: false
+  gather_facts: true
   become: true
 
   vars:
@@ -11,12 +11,19 @@
     agent_log_file: /var/log/monitor-agent.log
 
   tasks:
+    - name: Update apt package cache on Debian based hosts
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_pkg_mgr == "apt"
+
     - name: Install OS packages for Python agent
       ansible.builtin.package:
         name:
           - python3
           - python3-pip
           - python3-venv
+          - logrotate
         state: present
 
     - name: Create agent application directory
@@ -76,6 +83,14 @@
         mode: "0644"
         modification_time: preserve
         access_time: preserve
+
+    - name: Deploy monitor agent logrotate config
+      ansible.builtin.copy:
+        src: files/logrotate/monitor-agent
+        dest: /etc/logrotate.d/monitor-agent
+        owner: root
+        group: root
+        mode: "0644"
 
     - name: Deploy systemd service
       ansible.builtin.copy:

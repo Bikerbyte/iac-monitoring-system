@@ -34,3 +34,4 @@ ansible/group_vars/monitoring_stack/docker_targets.yml
 # Local teaching notes requested outside version control
 learning-notes/
 Ian_Style_SKILL.zh-TW.md
+AGENTS.md
