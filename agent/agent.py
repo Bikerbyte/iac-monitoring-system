@@ -9,6 +9,7 @@ network checks, then write enough log detail for operations troubleshooting.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import socket
 import sys
@@ -25,6 +26,8 @@ from prometheus_client import Gauge, start_http_server
 DEFAULT_CONFIG_PATH = "/etc/monitor-agent/config.yml"
 DEFAULT_LOG_FILE = "/var/log/monitor-agent.log"
 DEFAULT_METRICS_PORT = 8000
+__version__ = "1.1.0"
+HOSTNAME = socket.gethostname()
 
 
 RESOURCE_CPU_PERCENT = Gauge("monitor_agent_cpu_percent", "CPU usage collected by the monitor agent.")
@@ -59,6 +62,14 @@ class TcpTarget:
     host: str
     port: int
     timeout_seconds: float
+
+
+@dataclass(frozen=True)
+class CheckOutcome:
+    ok: bool
+    failure_type: str | None
+    message: str
+    latency_ms: float | None
 
 
 @dataclass
@@ -117,26 +128,43 @@ def load_config(config_path: str) -> AgentConfig:
 
 
 def configure_logging(log_file: str) -> None:
-    Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+
+    if log_file:
+        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+        handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
 
     logging.basicConfig(
-        filename=log_file,
         level=logging.INFO,
-        format="%(asctime)s level=%(levelname)s message=%(message)s",
-        datefmt="%Y-%m-%dT%H:%M:%S%z",
+        format="%(message)s",
+        handlers=handlers,
+        force=True,
     )
+
+
+def write_log(level: int, event: str, **fields: object) -> None:
+    log_item = {
+        "event": event,
+        "host": HOSTNAME,
+        "level": logging.getLevelName(level),
+        "logged_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "version": __version__,
+        **fields,
+    }
+    logging.log(level, json.dumps(log_item, separators=(",", ":"), sort_keys=True))
 
 
 def start_metrics_endpoint(config: AgentConfig) -> None:
     if not config.metrics_enabled:
-        logging.info("monitor-agent metrics endpoint disabled")
+        write_log(logging.INFO, "metrics_endpoint_disabled")
         return
 
     start_http_server(config.metrics_port, addr=config.metrics_listen_address)
-    logging.info(
-        "monitor-agent metrics endpoint listening address=%s port=%s",
-        config.metrics_listen_address,
-        config.metrics_port,
+    write_log(
+        logging.INFO,
+        "metrics_endpoint_started",
+        listen_address=config.metrics_listen_address,
+        port=config.metrics_port,
     )
 
 
@@ -157,48 +185,61 @@ def collect_resource_status() -> dict[str, Any]:
     }
 
 
-def check_dns(target: DnsTarget) -> tuple[bool, str]:
+def check_dns(target: DnsTarget) -> CheckOutcome:
+    start_time = time.monotonic()
+
     try:
         socket.getaddrinfo(target.host, None)
-        return True, "ok"
+        latency_ms = round((time.monotonic() - start_time) * 1000, 2)
+        return CheckOutcome(True, None, "resolved", latency_ms)
     except socket.gaierror as ex:
-        return False, f"dns_resolution_error: {ex}"
+        return CheckOutcome(False, "dns_resolution_error", str(ex), None)
     except OSError as ex:
-        return False, f"generic_socket_error: {ex}"
+        return CheckOutcome(False, "generic_socket_error", str(ex), None)
 
 
-def check_tcp(target: TcpTarget) -> tuple[bool, str]:
+def check_tcp(target: TcpTarget) -> CheckOutcome:
+    start_time = time.monotonic()
+
     try:
         with socket.create_connection((target.host, target.port), timeout=target.timeout_seconds):
-            return True, "ok"
+            latency_ms = round((time.monotonic() - start_time) * 1000, 2)
+            return CheckOutcome(True, None, "connected", latency_ms)
     except socket.timeout as ex:
-        return False, f"tcp_connection_timeout: {ex}"
+        return CheckOutcome(False, "tcp_connection_timeout", str(ex), None)
     except ConnectionRefusedError as ex:
-        return False, f"connection_refused: {ex}"
+        return CheckOutcome(False, "tcp_connection_refused", str(ex), None)
     except OSError as ex:
-        return False, f"generic_socket_error: {ex}"
+        return CheckOutcome(False, "tcp_connection_error", str(ex), None)
 
 
 def run_with_retry(
     check_name: str,
     retry_count: int,
     retry_delay_seconds: float,
-    check_func: Callable[[], tuple[bool, str]],
-) -> tuple[bool, str, int]:
-    last_message = "not_checked"
+    check_func: Callable[[], CheckOutcome],
+) -> tuple[CheckOutcome, int]:
+    last_outcome = CheckOutcome(False, "not_checked", "not_checked", None)
 
     for attempt in range(1, retry_count + 2):
-        ok, message = check_func()
-        if ok:
-            return True, message, attempt
+        outcome = check_func()
+        if outcome.ok:
+            return outcome, attempt
 
-        last_message = message
-        logging.warning("check=%s attempt=%s result=failed reason=%s", check_name, attempt, message)
+        last_outcome = outcome
+        write_log(
+            logging.WARNING,
+            "check_retry_failed",
+            check=check_name,
+            attempt=attempt,
+            failure_type=outcome.failure_type,
+            detail=outcome.message,
+        )
 
         if attempt <= retry_count:
             time.sleep(retry_delay_seconds)
 
-    return False, last_message, retry_count + 1
+    return last_outcome, retry_count + 1
 
 
 def run_check_cycle(config: AgentConfig) -> None:
@@ -207,32 +248,33 @@ def run_check_cycle(config: AgentConfig) -> None:
     RESOURCE_MEMORY_PERCENT.set(resources["memory_percent"])
     RESOURCE_ZOMBIE_PROCESSES.set(resources["zombie_process_count"])
 
-    logging.info(
-        "resource_status cpu_percent=%.1f memory_percent=%.1f zombie_process_count=%s",
-        resources["cpu_percent"],
-        resources["memory_percent"],
-        resources["zombie_process_count"],
+    write_log(
+        logging.INFO,
+        "metrics_collected",
+        cpu_percent=round(float(resources["cpu_percent"]), 2),
+        memory_percent=round(float(resources["memory_percent"]), 2),
+        zombie_process_count=resources["zombie_process_count"],
     )
 
     for target in config.dns_targets:
         check_name = f"dns:{target.name}"
-        ok, message, attempts = run_with_retry(
+        outcome, attempts = run_with_retry(
             check_name,
             config.retry_count,
             config.retry_delay_seconds,
             lambda target=target: check_dns(target),
         )
-        log_check_result("dns", target.name, target.host, None, ok, message, attempts)
+        log_check_result("dns", target.name, target.host, None, outcome, attempts)
 
     for target in config.tcp_targets:
         check_name = f"tcp:{target.name}"
-        ok, message, attempts = run_with_retry(
+        outcome, attempts = run_with_retry(
             check_name,
             config.retry_count,
             config.retry_delay_seconds,
             lambda target=target: check_tcp(target),
         )
-        log_check_result("tcp", target.name, target.host, target.port, ok, message, attempts)
+        log_check_result("tcp", target.name, target.host, target.port, outcome, attempts)
 
 
 def log_check_result(
@@ -240,28 +282,30 @@ def log_check_result(
     name: str,
     host: str,
     port: int | None,
-    ok: bool,
-    message: str,
+    outcome: CheckOutcome,
     attempts: int,
 ) -> None:
-    status = "ok" if ok else "failed"
-    level = logging.INFO if ok else logging.ERROR
+    status = "ok" if outcome.ok else "failed"
+    level = logging.INFO if outcome.ok else logging.ERROR
     port_label = str(port or "")
 
-    NETWORK_CHECK_SUCCESS.labels(check_type, name, host, port_label).set(1 if ok else 0)
+    NETWORK_CHECK_SUCCESS.labels(check_type, name, host, port_label).set(1 if outcome.ok else 0)
     NETWORK_CHECK_ATTEMPTS.labels(check_type, name, host, port_label).set(attempts)
     NETWORK_CHECK_LAST_RUN.labels(check_type, name, host, port_label).set(time.time())
 
-    logging.log(
+    write_log(
         level,
-        "network_check type=%s name=%s host=%s port=%s status=%s attempts=%s detail=%s",
-        check_type,
-        name,
-        host,
-        port or "-",
-        status,
-        attempts,
-        message,
+        "network_check",
+        type=check_type,
+        name=name,
+        target_host=host,
+        port=port,
+        status=status,
+        ok=outcome.ok,
+        attempts=attempts,
+        failure_type=outcome.failure_type,
+        detail=outcome.message,
+        latency_ms=outcome.latency_ms,
     )
 
 
@@ -291,7 +335,15 @@ def main() -> int:
             config.metrics_enabled = False
 
         configure_logging(config.log_file)
-        logging.info("monitor-agent starting config=%s interval_seconds=%s", args.config, config.interval_seconds)
+        write_log(
+            logging.INFO,
+            "agent_started",
+            config=args.config,
+            interval_seconds=config.interval_seconds,
+            metrics_enabled=config.metrics_enabled,
+            dns_targets=[target.__dict__ for target in config.dns_targets],
+            tcp_targets=[target.__dict__ for target in config.tcp_targets],
+        )
         start_metrics_endpoint(config)
 
         while True:
@@ -300,10 +352,17 @@ def main() -> int:
                 break
             time.sleep(config.interval_seconds)
 
-        logging.info("monitor-agent stopped")
+        write_log(logging.INFO, "agent_stopped")
         return 0
-    except Exception:
-        logging.exception("monitor-agent failed during startup or check cycle")
+    except Exception as ex:
+        if not logging.getLogger().handlers:
+            logging.basicConfig(level=logging.INFO, format="%(message)s")
+        write_log(
+            logging.ERROR,
+            "agent_failed",
+            failure_type=type(ex).__name__,
+            message=str(ex),
+        )
         return 1
 
 

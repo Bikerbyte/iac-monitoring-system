@@ -265,6 +265,13 @@ Python agent 會做兩件事：
 - 寫 log 到 `/var/log/monitor-agent.log`
 - 開啟 Prometheus metrics endpoint：`http://<server IP>:8000/metrics`
 
+agent log 是 JSON event 格式，會同時寫到檔案與 journald。這樣 demo 時可以直接用 `journalctl` 看服務狀態，也可以用 `tail` 看連續 event：
+
+```bash
+sudo journalctl -u monitor-agent -n 20 --no-pager
+sudo tail -f /var/log/monitor-agent.log
+```
+
 ### Server Agent 模式的兩種跑法
 
 預設安全模式不會建立 AWS 資源，也不會產生雲端費用：
@@ -281,6 +288,19 @@ enable_aws_resources = false
 - 可用的 AMI ID
 - SSH public/private key
 - 合適的 VPC/subnet，或使用 AWS default VPC
+
+AWS 設定完成後，建議先做一次最小檢查：
+
+```bash
+aws sts get-caller-identity
+aws ec2 describe-vpcs --region <你的 region> --max-results 5
+```
+
+接著確認 SSH key 檔案權限，Ansible 連線比較不會卡在 key permission：
+
+```bash
+chmod 600 ~/.ssh/id_rsa
+```
 
 ### 修改 Server Agent / AWS 設定
 
@@ -401,6 +421,20 @@ sudo journalctl -u monitor-agent -n 50 --no-pager
 sudo tail -f /var/log/monitor-agent.log
 curl http://localhost:8000/metrics
 ```
+
+如果要快速確認 JSON log 裡的事件類型：
+
+```bash
+sudo tail -n 20 /var/log/monitor-agent.log | jq -r '.event'
+```
+
+常見事件：
+
+- `agent_started`
+- `metrics_endpoint_started`
+- `metrics_collected`
+- `network_check`
+- `check_retry_failed`
 
 ### 清除 AWS Server Agent Mode
 
