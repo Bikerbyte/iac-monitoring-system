@@ -1,0 +1,9 @@
+/var/log/monitor-agent.log {
+    daily
+    rotate 14
+    compress
+    missingok
+    notifempty
+    copytruncate
+    create 0644 root root
+}
