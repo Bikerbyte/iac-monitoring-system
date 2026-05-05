@@ -4,8 +4,9 @@ DOCKER_TF_DIR := infra/docker/terraform
 SERVER_TF_DIR := infra/server/terraform
 NODE_COUNT ?= 3
 ANSIBLE_FLAGS ?=
+AWS_TFVARS ?= terraform.tfvars.aws
 
-.PHONY: help validate prepare-validation-files docker-init docker-up docker-ansible docker-scale docker-edit docker-down server-init server-plan server-apply server-agent server-stack server-up
+.PHONY: help validate prepare-validation-files require-aws-tfvars docker-init docker-up docker-ansible docker-scale docker-edit docker-down server-init server-plan server-apply server-agent server-agent-aws server-stack server-up server-aws-plan server-aws-apply server-aws-destroy server-aws-deploy smoke-server smoke-aws
 
 help:
 	@echo "Targets:"
@@ -17,8 +18,14 @@ help:
 	@echo "  make server-plan               Plan Server Agent Mode"
 	@echo "  make server-apply              Apply Server Agent Mode inventory"
 	@echo "  make server-agent              Deploy Python agent to remote servers"
+	@echo "  make server-agent-aws          Deploy Python agent with AWS-safe network checks"
 	@echo "  make server-stack              Deploy Prometheus/Grafana on this control node"
 	@echo "  make server-up                 Deploy remote agents and local stack"
+	@echo "  make server-aws-plan           Plan AWS EC2 Server Agent Mode with infra/server/terraform/$(AWS_TFVARS)"
+	@echo "  make server-aws-apply          Create AWS EC2 resources and generate Ansible inventory"
+	@echo "  make server-aws-deploy         Deploy AWS-safe agent config and local monitoring stack"
+	@echo "  make smoke-server              Run end-to-end health checks"
+	@echo "  make server-aws-destroy        Destroy AWS EC2 resources managed by Terraform"
 
 validate: prepare-validation-files
 	terraform -chdir=$(DOCKER_TF_DIR) fmt -check
@@ -30,10 +37,20 @@ validate: prepare-validation-files
 	ansible-playbook --syntax-check -i ansible/inventory.ini ansible/server-agent.yml
 	jq empty ansible/files/docker-target/grafana/dashboards/*.json ansible/files/grafana/dashboards/*.json
 	python3 -m py_compile agent/agent.py
+	bash -n scripts/smoke-server.sh
 
 prepare-validation-files:
 	mkdir -p ansible/group_vars/monitoring_stack
 	test -f ansible/inventory.ini || printf '[monitoring_agents]\nmonitor-node-02 ansible_host=127.0.0.1 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa\n\n[monitoring_stack]\nlocalhost ansible_connection=local\n' > ansible/inventory.ini
+
+require-aws-tfvars:
+	@test -f "$(SERVER_TF_DIR)/$(AWS_TFVARS)" || ( \
+		echo "Missing $(SERVER_TF_DIR)/$(AWS_TFVARS)."; \
+		echo "Create it with:"; \
+		echo "  cp $(SERVER_TF_DIR)/terraform.tfvars.aws.example $(SERVER_TF_DIR)/$(AWS_TFVARS)"; \
+		echo "Then edit AMI/VPC/subnet/CIDR values before applying."; \
+		exit 1; \
+	)
 
 docker-init:
 	terraform -chdir=$(DOCKER_TF_DIR) init
@@ -71,9 +88,30 @@ server-apply: server-init
 server-agent:
 	ansible-playbook -i ansible/inventory.ini ansible/server-agent.yml --limit monitoring_agents $(ANSIBLE_FLAGS)
 
+server-agent-aws:
+	ansible-playbook -i ansible/inventory.ini ansible/server-agent.yml --limit monitoring_agents -e agent_config_src=../agent/config.aws.yml $(ANSIBLE_FLAGS)
+
 server-stack:
 	ansible-playbook -i ansible/inventory.ini ansible/server-agent.yml --limit monitoring_stack $(ANSIBLE_FLAGS)
 
 server-up:
 	$(MAKE) server-agent
 	$(MAKE) server-stack
+
+server-aws-plan: require-aws-tfvars server-init
+	terraform -chdir=$(SERVER_TF_DIR) plan -var-file=$(AWS_TFVARS)
+
+server-aws-apply: require-aws-tfvars server-init
+	terraform -chdir=$(SERVER_TF_DIR) apply -var-file=$(AWS_TFVARS)
+
+server-aws-destroy: require-aws-tfvars server-init
+	terraform -chdir=$(SERVER_TF_DIR) destroy -var-file=$(AWS_TFVARS)
+
+server-aws-deploy:
+	$(MAKE) server-agent-aws
+	$(MAKE) server-stack
+
+smoke-server:
+	bash scripts/smoke-server.sh
+
+smoke-aws: smoke-server

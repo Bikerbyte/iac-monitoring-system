@@ -1,0 +1,24 @@
+agent:
+  interval_seconds: 60
+  retry_count: 2
+  retry_delay_seconds: 1
+  log_file: /var/log/monitor-agent.log
+  metrics_enabled: true
+  metrics_listen_address: 0.0.0.0
+  metrics_port: 8000
+
+network:
+  dns_targets:
+    - name: github-website
+      host: www.github.com
+
+  tcp_targets:
+    - name: aws-metadata
+      host: 169.254.169.254
+      port: 80
+      timeout_seconds: 3
+
+    - name: external-google
+      host: google.com
+      port: 443
+      timeout_seconds: 3
