@@ -6,7 +6,7 @@ NODE_COUNT ?= 3
 ANSIBLE_FLAGS ?=
 AWS_TFVARS ?= terraform.tfvars.aws
 
-.PHONY: help validate prepare-validation-files require-aws-tfvars docker-init docker-up docker-ansible docker-scale docker-edit docker-down server-init server-plan server-apply server-agent server-agent-aws server-stack server-up server-aws-plan server-aws-apply server-aws-destroy server-aws-deploy smoke-server smoke-aws
+.PHONY: help validate prepare-validation-files require-aws-tfvars docker-init docker-up docker-ansible docker-scale docker-edit docker-down server-init server-plan server-apply server-agent server-agent-aws server-stack server-up server-aws-plan server-aws-apply server-aws-destroy server-aws-deploy smoke-server smoke-aws verify-stack
 
 help:
 	@echo "Targets:"
@@ -25,6 +25,7 @@ help:
 	@echo "  make server-aws-apply          Create AWS EC2 resources and generate Ansible inventory"
 	@echo "  make server-aws-deploy         Deploy AWS-safe agent config and local monitoring stack"
 	@echo "  make smoke-server              Run end-to-end health checks"
+	@echo "  make verify-stack              Check Prometheus, Grafana, Alertmanager, and target metrics"
 	@echo "  make server-aws-destroy        Destroy AWS EC2 resources managed by Terraform"
 
 validate: prepare-validation-files
@@ -38,6 +39,7 @@ validate: prepare-validation-files
 	jq empty ansible/files/docker-target/grafana/dashboards/*.json ansible/files/grafana/dashboards/*.json
 	python3 -m py_compile agent/agent.py
 	bash -n scripts/smoke-server.sh
+	bash -n scripts/verify-monitoring-stack.sh
 
 prepare-validation-files:
 	mkdir -p ansible/group_vars/monitoring_stack
@@ -113,5 +115,8 @@ server-aws-deploy:
 
 smoke-server:
 	bash scripts/smoke-server.sh
+
+verify-stack:
+	bash scripts/verify-monitoring-stack.sh
 
 smoke-aws: smoke-server

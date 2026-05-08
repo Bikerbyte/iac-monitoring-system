@@ -119,7 +119,7 @@ variable "allowed_ssh_cidr_blocks" {
 }
 
 variable "allowed_monitoring_cidr_blocks" {
-  description = "CIDR blocks allowed to access Grafana, Prometheus, and monitor-agent metrics."
+  description = "CIDR blocks allowed to access Grafana, Prometheus, Alertmanager, monitor-agent metrics, and Node Exporter metrics."
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }

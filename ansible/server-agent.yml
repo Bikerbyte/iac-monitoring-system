@@ -111,6 +111,10 @@
         state: started
         daemon_reload: true
 
+    - name: Install Node Exporter for Linux host metrics
+      ansible.builtin.include_role:
+        name: node_exporter
+
   handlers:
     - name: Reload systemd
       ansible.builtin.systemd:
@@ -131,6 +135,7 @@
     prometheus_image: prom/prometheus:v2.54.1
     grafana_image: grafana/grafana:11.2.0
     blackbox_image: prom/blackbox-exporter:v0.25.0
+    alertmanager_image: prom/alertmanager:v0.27.0
     grafana_admin_user: admin
     grafana_admin_password: admin
 
@@ -162,11 +167,31 @@
         mode: "0755"
       loop:
         - "{{ monitoring_stack_dir }}"
+        - "{{ monitoring_stack_dir }}/rules"
         - "{{ monitoring_stack_dir }}/grafana"
         - "{{ monitoring_stack_dir }}/grafana/provisioning"
         - "{{ monitoring_stack_dir }}/grafana/provisioning/datasources"
         - "{{ monitoring_stack_dir }}/grafana/provisioning/dashboards"
         - "{{ monitoring_stack_dir }}/grafana/dashboards"
+
+    - name: Deploy Alertmanager config
+      ansible.builtin.template:
+        src: templates/alertmanager.yml.j2
+        dest: "{{ monitoring_stack_dir }}/alertmanager.yml"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Alertmanager
+
+    - name: Deploy Prometheus alert rules
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ monitoring_stack_dir }}/rules/{{ item | basename }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop: "{{ query('ansible.builtin.fileglob', playbook_dir + '/files/prometheus/rules/*.yml') }}"
+      notify: Restart Prometheus
 
     - name: Deploy Prometheus scrape config
       ansible.builtin.template:
@@ -257,6 +282,29 @@
         - blackbox_state is defined
         - blackbox_state.stdout == "true"
 
+    - name: Check Alertmanager container state
+      ansible.builtin.shell: |
+        set -o pipefail
+        docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' alertmanager 2>/dev/null || true
+      args:
+        executable: /bin/bash
+      register: alertmanager_state
+      changed_when: false
+
+    - name: Start Alertmanager container
+      ansible.builtin.shell: |
+        docker rm -f alertmanager >/dev/null 2>&1 || true
+        docker run -d \
+          --name alertmanager \
+          --restart unless-stopped \
+          --network iac-monitoring \
+          -p 9093:9093 \
+          -v "{{ monitoring_stack_dir }}/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro" \
+          "{{ alertmanager_image }}" \
+          --config.file=/etc/alertmanager/alertmanager.yml
+      when: alertmanager_state.stdout != "true"
+      changed_when: true
+
     - name: Check Prometheus container state
       ansible.builtin.shell: |
         set -o pipefail
@@ -275,6 +323,7 @@
           --network iac-monitoring \
           -p 9090:9090 \
           -v "{{ monitoring_stack_dir }}/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+          -v "{{ monitoring_stack_dir }}/rules:/etc/prometheus/rules:ro" \
           "{{ prometheus_image }}" \
           --config.file=/etc/prometheus/prometheus.yml \
           --storage.tsdb.retention.time=7d
@@ -317,9 +366,23 @@
           --network iac-monitoring \
           -p 9090:9090 \
           -v "{{ monitoring_stack_dir }}/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+          -v "{{ monitoring_stack_dir }}/rules:/etc/prometheus/rules:ro" \
           "{{ prometheus_image }}" \
           --config.file=/etc/prometheus/prometheus.yml \
           --storage.tsdb.retention.time=7d
+      changed_when: true
+
+    - name: Restart Alertmanager
+      ansible.builtin.shell: |
+        docker rm -f alertmanager >/dev/null 2>&1 || true
+        docker run -d \
+          --name alertmanager \
+          --restart unless-stopped \
+          --network iac-monitoring \
+          -p 9093:9093 \
+          -v "{{ monitoring_stack_dir }}/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro" \
+          "{{ alertmanager_image }}" \
+          --config.file=/etc/alertmanager/alertmanager.yml
       changed_when: true
 
     - name: Restart Grafana
