@@ -2,6 +2,15 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
 scrape_configs:
   - job_name: prometheus
     static_configs:
@@ -17,6 +26,20 @@ scrape_configs:
           - {{ hostvars[host].ansible_host }}:8000
 {% endfor %}
 {% endif %}
+
+{% if agent_hosts | length > 0 %}
+  - job_name: node-exporter
+    static_configs:
+      - targets:
+{% for host in agent_hosts %}
+          - {{ hostvars[host].ansible_host }}:9100
+{% endfor %}
+{% endif %}
+
+  - job_name: alertmanager
+    static_configs:
+      - targets:
+          - alertmanager:9093
 
 {% set docker_targets = iac_docker_target_app_targets | default([]) %}
 {% if docker_targets | length > 0 %}

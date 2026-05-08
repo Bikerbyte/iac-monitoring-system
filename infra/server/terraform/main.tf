@@ -80,9 +80,25 @@ resource "aws_security_group" "monitoring_lab" {
   }
 
   ingress {
+    description = "Alertmanager"
+    from_port   = 9093
+    to_port     = 9093
+    protocol    = "tcp"
+    cidr_blocks = var.allowed_monitoring_cidr_blocks
+  }
+
+  ingress {
     description = "Grafana"
     from_port   = 3000
     to_port     = 3000
+    protocol    = "tcp"
+    cidr_blocks = var.allowed_monitoring_cidr_blocks
+  }
+
+  ingress {
+    description = "Node Exporter metrics"
+    from_port   = 9100
+    to_port     = 9100
     protocol    = "tcp"
     cidr_blocks = var.allowed_monitoring_cidr_blocks
   }

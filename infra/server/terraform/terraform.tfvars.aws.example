@@ -26,4 +26,4 @@ aws_subnet_id = "subnet-0f78ad2fac57a4d7f"
 # Example:
 #   curl -fsS https://checkip.amazonaws.com
 allowed_ssh_cidr_blocks        = ["180.177.202.27/32"]
-allowed_monitoring_cidr_blocks = ["180.177.202.27/32"] # Grafana 3000, Prometheus 9090, agent 8000
+allowed_monitoring_cidr_blocks = ["180.177.202.27/32"] # Grafana 3000, agent 8000, Prometheus 9090, Alertmanager 9093, Node Exporter 9100

@@ -1,4 +1,6 @@
 # Copy this file to terraform.tfvars for local server or AWS mode overrides.
+# Server Agent Mode is the primary VM/Linux monitoring path.
+# Docker Target Mode remains available separately as a quick local demo.
 # Default mock mode does not create AWS resources.
 
 node_count           = 2
@@ -30,4 +32,11 @@ server_hosts = [
 #
 # Replace these with your own public IP ranges before creating EC2 instances.
 # allowed_ssh_cidr_blocks        = ["203.0.113.10/32"]
-# allowed_monitoring_cidr_blocks = ["203.0.113.10/32"] # Grafana 3000, Prometheus 9090, agent 8000
+# allowed_monitoring_cidr_blocks = ["203.0.113.10/32"]
+#
+# Monitoring ports used by this project:
+# - 3000: Grafana on the control node
+# - 8000: Python monitor-agent metrics on target servers
+# - 9090: Prometheus on the control node
+# - 9093: Alertmanager on the control node
+# - 9100: Node Exporter metrics on target servers
