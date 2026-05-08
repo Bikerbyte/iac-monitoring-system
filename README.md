@@ -8,15 +8,29 @@
 
 ```mermaid
 flowchart LR
-  TF["Terraform\nserver inventory / AWS EC2"] --> VM["Linux VMs"]
-  TF --> INV["ansible/inventory.ini"]
+  TF["Terraform\nserver inventory / optional AWS EC2"] --> INV["ansible/inventory.ini"]
   INV --> ANS["Ansible"]
-  ANS --> AGENT["Python monitor-agent\n:8000 metrics + JSON logs"]
-  ANS --> NODE["Node Exporter\n:9100 Linux metrics"]
-  ANS --> STACK["Docker monitoring stack"]
-  STACK --> PROM["Prometheus\n:9090"]
-  STACK --> GRAF["Grafana\n:3000"]
-  STACK --> AM["Alertmanager\n:9093"]
+
+  subgraph TARGETS["Linux target servers / VMs"]
+    AGENT["Python monitor-agent\nsystemd service\n:8000/metrics + JSON logs"]
+    NODE["Node Exporter\nsystemd service\n:9100/metrics"]
+  end
+
+  ANS --> AGENT
+  ANS --> NODE
+
+  subgraph CONTROL["Control node"]
+    STACK["Docker monitoring stack\nconfigs + containers"]
+    PROM["Prometheus\n:9090"]
+    GRAF["Grafana\n:3000"]
+    AM["Alertmanager\n:9093"]
+
+    STACK --> PROM
+    STACK --> GRAF
+    STACK --> AM
+  end
+
+  ANS --> STACK
   PROM --> AGENT
   PROM --> NODE
   PROM --> AM
