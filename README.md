@@ -1,10 +1,10 @@
 # iac-monitoring-system
 
-用 Terraform 管 server 清單（或開 AWS EC2），Ansible 把 monitoring agent、Node Exporter 和 Prometheus/Grafana/Alertmanager 推上去，然後用 Grafana 看狀態、Prometheus 發 alert。
+Terraform manages the server inventory (or spins up AWS EC2s), Ansible pushes a Python monitoring agent, Node Exporter, and a Prometheus/Grafana/Alertmanager stack onto each host. The whole thing wires up automatically — Prometheus scrapes both the agent and Node Exporter, Grafana has dashboards provisioned out of the box, and Alertmanager fires alerts when thresholds are crossed.
 
-主要情境是 Server Agent Mode，也就是直接把 agent 裝到 Linux server 上。另外保留了一個 Docker Target Mode 當作本機 demo 用，可以讓 Prometheus blackbox 去 scrape Docker container。
+The main use case is **Server Agent Mode**: deploy the agent to real Linux servers. There's also a **Docker Target Mode** for a quick local demo where Prometheus scrapes Docker containers via blackbox exporter — handy for showing off the Terraform inventory workflow without needing actual servers.
 
-## 架構
+## Architecture 
 
 ```mermaid
 flowchart LR
@@ -37,29 +37,29 @@ flowchart LR
   GRAF --> PROM
 ```
 
-各元件分工：
+What each piece does:
 
-- **Python agent**：跑 DNS/TCP 檢查、量 latency、記 retry 次數，結果以 JSON 寫 log 並同時暴露 `:8000/metrics` 給 Prometheus scrape。
-- **Node Exporter**：收 CPU、memory、disk、network 這些標準 Linux host metrics，走 `:9100/metrics`。
-- **Prometheus**：scrape agent 和 Node Exporter，觸發 alert 時通知 Alertmanager。
-- **Grafana**：三個預裝 dashboard，分別對應 agent、Linux node、Docker target。
-- **Alertmanager**：目前用本機 basic receiver，沒有接 Slack 或 email。
+- **Python agent** — DNS/TCP checks, latency measurement, retry tracking, structured JSON logs. Also exposes `:8000/metrics` for Prometheus to scrape.
+- **Node Exporter** — standard Linux host metrics (CPU, memory, disk, network) on `:9100/metrics`.
+- **Prometheus** — scrapes the agent and Node Exporter, routes alerts to Alertmanager.
+- **Grafana** — three pre-provisioned dashboards: agent checks, Linux node overview, Docker targets.
+- **Alertmanager** — configured with a local basic receiver. No Slack or email hooks at the moment.
 
-## 目錄結構
+## Repository Structure
 
 ```text
 infra/
-  server/terraform/      Server Agent Mode inventory / 選用 AWS EC2
+  server/terraform/      Server Agent Mode inventory / optional AWS EC2
   docker/terraform/      Docker Target Mode local demo
 ansible/
-  server-agent.yml       部署 agent 和 monitoring stack
-  roles/node_exporter/   Node Exporter systemd 安裝
-  templates/             Prometheus / Alertmanager config 模板
-  files/grafana/         Grafana dashboard provisioning
+  server-agent.yml       Deploy agents and Docker-based monitoring stack
+  roles/node_exporter/   Install Node Exporter with systemd
+  templates/             Prometheus and Alertmanager config templates
+  files/grafana/         Provisioned Grafana dashboards
   files/prometheus/      Prometheus alert rules
 agent/
   agent.py               Python monitoring agent
-  config.yml             agent 預設 check 設定
+  config.yml             Default agent checks
 runbooks/                Linux incident runbooks
 scripts/
   smoke-server.sh
@@ -68,29 +68,29 @@ systemd/
   monitor-agent.service
 ```
 
-## 需要準備的東西
+## Prerequisites
 
 - Terraform >= 1.5
 - Ansible
-- Control node 上要有 Docker
-- 1 到 5 台可以 SSH 進去的 Linux server，或是 AWS credentials 讓 Terraform 開 EC2
-- Target server 上的 sudo 權限
-- Control node 能連到 Docker Hub 拉 image
+- Docker on the control node (for the monitoring stack)
+- 1–5 Linux servers you can SSH into, or AWS credentials if you want Terraform to create EC2s
+- sudo on the target servers
+- Control node needs to reach Docker Hub to pull images
 
-預設不會開 AWS 資源，只用 `terraform.tfvars` 裡的 server 清單產 inventory。要開 EC2 的話把 `enable_aws_resources=true` 打開，再填 AMI、VPC/subnet、SSH key、允許的 CIDR。
+By default no AWS resources are created — Terraform just reads `terraform.tfvars` and generates an Ansible inventory. To actually provision EC2s, set `enable_aws_resources=true` and fill in the AMI, VPC/subnet, SSH key, and allowed CIDR.
 
-## 快速開始
+## Quick Start
 
 ```bash
 cp infra/server/terraform/terraform.tfvars.example infra/server/terraform/terraform.tfvars
-# 填入 server_hosts、ansible_user、ssh_private_key_file
+# fill in server_hosts, ansible_user, ssh_private_key_file
 
 make server-apply
 make server-up ANSIBLE_FLAGS="--ask-become-pass"
 make verify-stack
 ```
 
-跑起來之後：
+Once everything's up:
 
 ```text
 Prometheus:    http://localhost:9090
@@ -98,7 +98,7 @@ Grafana:       http://localhost:3000  admin / admin
 Alertmanager:  http://localhost:9093
 ```
 
-確認 target 上的服務有跑起來：
+Verify the agent and Node Exporter are running on each target:
 
 ```bash
 systemctl status monitor-agent
@@ -109,7 +109,7 @@ curl http://<target-ip>:9100/metrics
 
 ## Terraform
 
-Server Agent Mode：
+Server Agent Mode:
 
 ```bash
 terraform -chdir=infra/server/terraform init
@@ -118,13 +118,13 @@ terraform -chdir=infra/server/terraform apply
 terraform -chdir=infra/server/terraform output
 ```
 
-`output` 會印出 server IP、SSH 連線資訊、monitor-agent targets、Node Exporter targets，以及 Prometheus/Grafana/Alertmanager 的本機 URL。
+`output` prints server IPs, SSH connection info, monitor-agent and Node Exporter target URLs, and the local Prometheus/Grafana/Alertmanager URLs.
 
-AWS EC2：
+AWS EC2:
 
 ```bash
 cp infra/server/terraform/terraform.tfvars.aws.example infra/server/terraform/terraform.tfvars.aws
-# 填 AMI、VPC、subnet、CIDR、SSH key
+# fill in AMI, VPC, subnet, CIDR, SSH key
 make server-aws-plan
 make server-aws-apply
 make server-aws-deploy ANSIBLE_FLAGS="--ask-become-pass"
@@ -132,7 +132,7 @@ make verify-stack
 make server-aws-destroy
 ```
 
-Docker Target Mode（本機 demo）：
+Docker Target Mode (local demo only):
 
 ```bash
 make docker-up ANSIBLE_FLAGS="--ask-become-pass"
@@ -147,21 +147,21 @@ make server-agent ANSIBLE_FLAGS="--ask-become-pass"
 make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
-`server-agent` 裝到 Linux target 上：Python agent systemd service、Node Exporter systemd service、logrotate config。
+`server-agent` installs on each Linux target: Python monitor-agent systemd service, Node Exporter systemd service, logrotate config.
 
-`server-stack` 在 control node 起 Docker 的：Prometheus、Grafana、Alertmanager，以及 Docker Target Mode 有 target 時會多起 blackbox exporter。
+`server-stack` deploys on the control node via Docker: Prometheus, Grafana, Alertmanager, and blackbox exporter (only when Docker Target Mode has targets).
 
-## 監控指標
+## Monitoring Targets
 
-Prometheus scrape jobs：
+Prometheus scrape jobs:
 
 - `prometheus`
 - `monitor-agent`
 - `node-exporter`
 - `alertmanager`
-- `docker-target-http`（只有 Docker Target Mode 有 target 時才會出現）
+- `docker-target-http` (only present when Docker Target Mode targets exist)
 
-主要 Linux metrics：
+Key Linux metrics from Node Exporter:
 
 ```text
 up
@@ -175,17 +175,17 @@ node_network_receive_bytes_total
 node_network_transmit_bytes_total
 ```
 
-Python agent 的 log 格式：
+Agent log format (one JSON object per line):
 
 ```json
 {"attempts":1,"detail":"connected","event":"network_check","failure_type":null,"host":"monitor-node-01","latency_ms":12.4,"level":"INFO","logged_at":"2026-05-05T20:10:00+0800","name":"external-google","ok":true,"port":443,"status":"ok","target_host":"google.com","type":"tcp","version":"1.1.0"}
 ```
 
-用 `journalctl -u monitor-agent -f` 或 `tail -f /var/log/monitor-agent.log` 追蹤，也可以接 Filebeat / Promtail 集中收。
+Follow logs with `journalctl -u monitor-agent -f` or `tail -f /var/log/monitor-agent.log`. The JSON format makes it easy to pipe into Filebeat, Promtail, or just `jq`.
 
 ## Alerts
 
-Alert rules 放在 `ansible/files/prometheus/rules/linux-alerts.yml`，Ansible 部署時會推到 Prometheus：
+Rules live in `ansible/files/prometheus/rules/linux-alerts.yml` and get pushed to Prometheus by Ansible:
 
 - `InstanceDown`
 - `NodeExporterDown`
@@ -194,20 +194,20 @@ Alert rules 放在 `ansible/files/prometheus/rules/linux-alerts.yml`，Ansible �
 - `DiskAlmostFull`
 - `HighLoadAverage`
 
-手動觸發測試：
+To test alerts manually:
 
 ```bash
-# 觸發 NodeExporterDown
+# trigger NodeExporterDown
 sudo systemctl stop node_exporter
 
-# 觸發 InstanceDown（同時停掉兩個 endpoint）
+# trigger InstanceDown (both endpoints down)
 sudo systemctl stop monitor-agent node_exporter
 
-# 恢復
+# recover
 sudo systemctl start monitor-agent node_exporter
 ```
 
-CPU、memory、disk、load 的模擬方式看 `docs/system-usage.zh-TW.md` 和 `runbooks/`。
+For simulating CPU/memory/disk/load pressure, see `docs/system-usage.zh-TW.md` and the runbooks.
 
 ## Runbooks
 
@@ -220,11 +220,11 @@ runbooks/high-memory.md
 runbooks/high-load.md
 ```
 
-每份都有：症狀、影響範圍、初步確認指令、常見原因、修法、驗證步驟、預防方式。
+Each runbook covers: symptoms, blast radius, initial checks, investigation commands, common root causes, fix steps, validation, and prevention.
 
-## 備份與還原
+## Backup and Restore
 
-設定以 Git + Ansible template 為主，不額外放 backup script。runtime 有手動改過的話可以用下面的指令備份：
+Config lives in Git and Ansible templates, so the canonical restore path is just re-running Ansible. If you've made manual runtime changes you want to preserve:
 
 ```bash
 backup_dir="backups/manual-$(date +%Y%m%d-%H%M%S)"
@@ -235,16 +235,16 @@ sudo cp -a /opt/iac-monitoring-stack/rules "$backup_dir/" 2>/dev/null || true
 sudo cp -a /opt/iac-monitoring-stack/grafana/dashboards "$backup_dir/" 2>/dev/null || true
 ```
 
-還原直接重跑 Ansible 就好：
+To restore from Ansible (recommended):
 
 ```bash
 make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 make verify-stack
 ```
 
-## 驗證
+## Validation
 
-部署前靜態檢查：
+Before deploying:
 
 ```bash
 make validate
@@ -255,7 +255,7 @@ jq empty ansible/files/grafana/dashboards/*.json
 bash -n scripts/verify-monitoring-stack.sh
 ```
 
-部署後確認有沒有起來：
+After deploying:
 
 ```bash
 make verify-stack
@@ -265,23 +265,23 @@ curl http://<target-ip>:8000/metrics
 curl http://<target-ip>:9100/metrics
 ```
 
-## 常見問題
+## Troubleshooting
 
-**Prometheus 看不到 target**
+**Prometheus not seeing targets**
 ```bash
 terraform -chdir=infra/server/terraform output
 cat ansible/inventory.ini
 curl http://localhost:9090/api/v1/targets
 ```
 
-**Node Exporter 沒資料**
+**Node Exporter not reporting**
 ```bash
 systemctl status node_exporter
 journalctl -u node_exporter --no-pager -n 100
 curl http://localhost:9100/metrics
 ```
 
-**Python agent 沒資料**
+**Python agent not reporting**
 ```bash
 systemctl status monitor-agent
 journalctl -u monitor-agent --no-pager -n 100
@@ -289,14 +289,9 @@ tail -n 50 /var/log/monitor-agent.log
 curl http://localhost:8000/metrics
 ```
 
-**Grafana 沒 dashboard**
+**Grafana dashboards missing**
 ```bash
 docker logs grafana --tail 100
 ls -l /opt/iac-monitoring-stack/grafana/dashboards
 make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
-
-## 需求
-psutil==5.9.8
-prometheus-client==0.21.1
-PyYAML==6.0.2
