@@ -1,0 +1,71 @@
+---
+- name: Resolve Node Exporter architecture
+  ansible.builtin.set_fact:
+    node_exporter_arch: "{{ node_exporter_arch_map[ansible_architecture] | default('') }}"
+  vars:
+    node_exporter_arch_map:
+      x86_64: amd64
+      aarch64: arm64
+      armv7l: armv7
+
+- name: Require supported Node Exporter architecture
+  ansible.builtin.fail:
+    msg: "Unsupported Node Exporter architecture: {{ ansible_architecture }}"
+  when: node_exporter_arch == ""
+
+- name: Ensure Node Exporter user exists
+  ansible.builtin.user:
+    name: "{{ node_exporter_user }}"
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+
+- name: Create Node Exporter textfile collector directory
+  ansible.builtin.file:
+    path: "{{ node_exporter_textfile_dir }}"
+    state: directory
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_user }}"
+    mode: "0755"
+
+- name: Download Node Exporter archive
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}.tar.gz"
+    dest: "/tmp/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}.tar.gz"
+    mode: "0644"
+
+- name: Extract Node Exporter archive
+  ansible.builtin.unarchive:
+    src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}.tar.gz"
+    dest: /tmp
+    remote_src: true
+    creates: "/tmp/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}/node_exporter"
+
+- name: Install Node Exporter binary
+  ansible.builtin.copy:
+    src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}/node_exporter"
+    dest: "{{ node_exporter_install_dir }}/node_exporter"
+    owner: root
+    group: root
+    mode: "0755"
+    remote_src: true
+  notify: Restart node_exporter
+
+- name: Deploy Node Exporter systemd service
+  ansible.builtin.template:
+    src: node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart node_exporter
+
+- name: Enable and start Node Exporter
+  ansible.builtin.systemd:
+    name: node_exporter
+    enabled: true
+    state: started
+    daemon_reload: true
+

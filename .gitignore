@@ -9,6 +9,7 @@ venv/
 monitor-agent.log
 monitor-agent.pid
 monitor-agent.stdout
+backups/
 
 # Terraform local state and provider cache
 .terraform/
