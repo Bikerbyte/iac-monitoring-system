@@ -35,8 +35,9 @@ locals {
     }
   ]
 
-  existing_hosts = slice(var.server_hosts, 0, var.node_count)
-  selected_hosts = var.enable_aws_resources ? local.aws_hosts : local.existing_hosts
+  existing_host_count = min(var.node_count, length(var.server_hosts))
+  existing_hosts      = slice(var.server_hosts, 0, local.existing_host_count)
+  selected_hosts      = var.enable_aws_resources ? local.aws_hosts : local.existing_hosts
 
   inventory_lines = [
     for host in local.selected_hosts :
