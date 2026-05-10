@@ -1,53 +1,59 @@
-# IaC Monitoring System 使用教學
+# IaC Monitoring System 操作說明
 
-這份文件用來操作 `iac-monitoring-system` 的 VM/Linux monitoring workflow。主線是 Server Agent Mode：Terraform 管 Linux server inventory 或 AWS EC2，Ansible 派送 Python monitor-agent、Node Exporter，以及 control node 上的 Docker-based Prometheus/Grafana/Alertmanager stack。
+`iac-monitoring-system` 的 Server Agent Mode：  
 
-Docker Target Mode 仍保留，但定位是快速 local demo，用來展示 Terraform 管理 Docker app targets 與 Prometheus blackbox scrape。
+Terraform 管 Linux server inventory 或 AWS EC2  
 
-## 開始前確認位置
+Ansible 把 Python monitor-agent、Node Exporter 推上去，control node 跑 Docker-based 的 Prometheus/Grafana/Alertmanager。
 
-以下指令都假設你在專案根目錄執行，也就是看得到 `infra/`、`ansible/`、`agent/`、`docs/` 的那一層。
+Docker Target Mode 保留作為本機 demo 用。
+
+## 確認工作目錄
+
+所有指令都在專案根目錄執行：
 
 ```bash
 cd iac-monitoring-system
 ls
 ```
 
-應該會看到：
+應該看到：
 
 ```text
 ansible  agent  docs  infra
 ```
 
-主要 Terraform 目錄：
+兩個 Terraform 目錄：
 
 ```text
 infra/server/terraform/  Server Agent Mode，既有 Linux servers 或 AWS EC2
-infra/docker/terraform/  Docker Target Mode，本機 Docker app containers demo
+infra/docker/terraform/  Docker Target Mode，本機 demo 用
 ```
 
 ## Server Agent Mode
 
-Server Agent Mode 會部署兩種 target-side monitoring output：
+每台 target server 跑兩個東西：
 
-- Python agent：DNS/TCP/custom checks、latency、retry attempts、JSON event logs、`:8000/metrics`
-- Node Exporter：CPU、memory、disk、filesystem、load、network、`:9100/metrics`
+- **Python agent**：DNS/TCP 檢查、latency、retry 紀錄、JSON log，暴露 `:8000/metrics`
+- **Node Exporter**：標準 Linux metrics（CPU、memory、disk、network），暴露 `:9100/metrics`
 
-control node 上的 monitoring stack 維持 Docker-based deployment：
+Control node 跑 Docker 的 monitoring stack：
 
-- Prometheus：`http://localhost:9090`
-- Grafana：`http://localhost:3000`
-- Alertmanager：`http://localhost:9093`
+```text
+Prometheus:    http://localhost:9090
+Grafana:       http://localhost:3000
+Alertmanager:  http://localhost:9093
+```
 
 ### 設定 Terraform inventory
 
-先複製範例設定：
+複製範例設定：
 
 ```bash
 cp infra/server/terraform/terraform.tfvars.example infra/server/terraform/terraform.tfvars
 ```
 
-編輯 `infra/server/terraform/terraform.tfvars`。既有 Linux servers 可以用這種格式：
+編輯 `infra/server/terraform/terraform.tfvars`，既有 Linux server 填這樣：
 
 ```hcl
 node_count           = 2
@@ -69,33 +75,32 @@ server_hosts = [
 ]
 ```
 
-`ssh_private_key_file = ""` 代表 inventory 不指定 key，Ansible 可以搭配 `--ask-pass`。正式環境建議使用 SSH key。
+`ssh_private_key_file = ""` 代表不指定 key，搭配 `--ask-pass` 用密碼登入。正式環境建議用 SSH key。
 
 常用欄位：
 
-- `node_count`
-- `enable_aws_resources`
-- `server_hosts[*].ip_address`
-- `ansible_user`
-- `ssh_private_key_file`
-- `ssh_public_key_file`
-- `aws_region`
-- `aws_ami_id`
-- `aws_instance_type`
-- `allowed_ssh_cidr_blocks`
-- `allowed_monitoring_cidr_blocks`
+| 欄位 | 說明 |
+|---|---|
+| `node_count` | server 數量 |
+| `enable_aws_resources` | 是否開 EC2 |
+| `server_hosts[*].ip_address` | server IP |
+| `ansible_user` | SSH 登入用戶 |
+| `ssh_private_key_file` | SSH key 路徑 |
+| `aws_region` / `aws_ami_id` / `aws_instance_type` | AWS 設定 |
+| `allowed_ssh_cidr_blocks` | 允許 SSH 的來源 IP |
+| `allowed_monitoring_cidr_blocks` | 允許存取 monitoring port 的來源 IP |
 
-AWS/security group 會用到這些 monitoring ports：
+開 AWS 前記得把 CIDR 從 `0.0.0.0/0` 改成自己的固定 IP，例如 `["203.0.113.10/32"]`。
+
+Monitoring 用到的 port：
 
 ```text
 3000  Grafana
-8000  Python monitor-agent metrics
+8000  Python agent metrics
 9090  Prometheus
 9093  Alertmanager
-9100  Node Exporter metrics
+9100  Node Exporter
 ```
-
-真的開 AWS 前，請把 `allowed_ssh_cidr_blocks` 和 `allowed_monitoring_cidr_blocks` 從 `0.0.0.0/0` 改成自己的固定 IP，例如 `["203.0.113.10/32"]`。
 
 ### 產生 inventory
 
@@ -106,9 +111,9 @@ terraform -chdir=infra/server/terraform apply
 terraform -chdir=infra/server/terraform output
 ```
 
-Terraform 會產生 `ansible/inventory.ini`，並輸出 server IP、SSH connection info、`monitor-agent` targets、Node Exporter targets，以及 Prometheus/Grafana/Alertmanager URLs。
+`output` 會印出 server IP、SSH 連線資訊、agent/Node Exporter targets、以及 monitoring stack 的本機 URL。
 
-### 部署 agent 與 monitoring stack
+### 部署
 
 密碼登入：
 
@@ -124,25 +129,25 @@ make server-agent ANSIBLE_FLAGS="--ask-become-pass"
 make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
-也可以一次跑完：
+一次跑完兩個：
 
 ```bash
 make server-up ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
-AWS EC2 demo flow：
+AWS EC2 的話：
 
 ```bash
 cp infra/server/terraform/terraform.tfvars.aws.example infra/server/terraform/terraform.tfvars.aws
-# 編輯 AMI、VPC、subnet、CIDR、SSH key
+# 填 AMI、VPC、subnet、CIDR、SSH key
 make server-aws-plan
 make server-aws-apply
 make server-aws-deploy ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
-如果是 AWS EC2 demo，`server-aws-deploy` 會使用 AWS-safe agent config，避免在 EC2 上檢查本地 LAN gateway。
+`server-aws-deploy` 會用 AWS-safe 的 agent config，避免在 EC2 上檢查本地 LAN gateway。
 
-### 驗證服務狀態
+### 確認服務有起來
 
 在 target server 上：
 
@@ -150,7 +155,6 @@ make server-aws-deploy ANSIBLE_FLAGS="--ask-become-pass"
 sudo systemctl status monitor-agent
 sudo systemctl status node_exporter
 sudo journalctl -u monitor-agent --no-pager -n 50
-sudo journalctl -u node_exporter --no-pager -n 50
 curl http://localhost:8000/metrics
 curl http://localhost:9100/metrics
 ```
@@ -166,64 +170,44 @@ curl http://<target-ip>:9100/metrics
 make verify-stack
 ```
 
-Prometheus targets：
+Prometheus targets 頁面：
 
-```text
+```
 http://localhost:9090/targets
 ```
 
-應該可以看到：
-
-```text
-prometheus
-monitor-agent
-node-exporter
-alertmanager
-```
+應該要看到 `prometheus`、`monitor-agent`、`node-exporter`、`alertmanager` 都是 UP。
 
 Grafana：
 
-```text
-http://localhost:3000
-admin / admin
+```
+http://localhost:3000  (admin / admin)
 Dashboard: IaC Agent Overview
 Dashboard: Linux Node Overview
 ```
 
-### 查看 Python agent log
+### 看 agent log
 
-Python agent log 是 JSON event 格式，會同時寫到檔案與 journald。
+Agent log 是 JSON 格式，同時寫 journald 和本機檔案：
 
 ```bash
 sudo journalctl -u monitor-agent -n 20 --no-pager
 sudo tail -f /var/log/monitor-agent.log
 ```
 
-快速確認事件類型：
+快速列出事件類型：
 
 ```bash
 sudo tail -n 20 /var/log/monitor-agent.log | jq -r '.event'
 ```
 
-常見事件：
+常見事件：`agent_started`、`metrics_endpoint_started`、`metrics_collected`、`network_check`、`check_retry_failed`
 
-- `agent_started`
-- `metrics_endpoint_started`
-- `metrics_collected`
-- `network_check`
-- `check_retry_failed`
-
-network check 的重要欄位包含 `event`、`host`、`version`、`failure_type`、`latency_ms`、`attempts`。
+`network_check` 裡比較有用的欄位：`failure_type`、`latency_ms`、`attempts`、`ok`。
 
 ## Alerts
 
-Prometheus alert rules 由 Ansible 派送，來源在：
-
-```text
-ansible/files/prometheus/rules/linux-alerts.yml
-```
-
-目前 alerts：
+Rules 放在 `ansible/files/prometheus/rules/linux-alerts.yml`，Ansible 部署時推給 Prometheus：
 
 - `InstanceDown`
 - `NodeExporterDown`
@@ -232,29 +216,17 @@ ansible/files/prometheus/rules/linux-alerts.yml
 - `DiskAlmostFull`
 - `HighLoadAverage`
 
-Alertmanager UI：
-
-```text
-http://localhost:9093
-```
-
-目前 Alertmanager 使用本機可驗證的 basic receiver，不接 Slack/email。
+Alertmanager UI：`http://localhost:9093`（目前用 basic receiver，沒接 Slack/email）
 
 ### 測試 NodeExporterDown
 
-在 target server 上停止 Node Exporter：
+在 target server 上：
 
 ```bash
 sudo systemctl stop node_exporter
 ```
 
-確認 Prometheus：
-
-```text
-http://localhost:9090/alerts
-```
-
-恢復：
+去 `http://localhost:9090/alerts` 確認 alert 有觸發，測完恢復：
 
 ```bash
 sudo systemctl start node_exporter
@@ -262,45 +234,36 @@ sudo systemctl start node_exporter
 
 ### 測試 InstanceDown
 
-在 target server 上同時停止兩個 metrics endpoint：
+同時停掉兩個 metrics endpoint：
 
 ```bash
 sudo systemctl stop monitor-agent node_exporter
-```
-
-恢復：
-
-```bash
+# 恢復
 sudo systemctl start monitor-agent node_exporter
 ```
 
 ### 測試 HighCPUUsage
 
-若 target server 有 `stress-ng`：
+有裝 `stress-ng` 的話：
 
 ```bash
 sudo stress-ng --cpu "$(nproc)" --timeout 10m
 ```
 
-沒有 `stress-ng` 時，不建議為了 demo 在正式機器硬跑 busy loop。可以改用測試 VM。
+沒有的話建議在測試 VM 上操作，不要在正式機器跑 busy loop。
 
 ### 測試 HighMemoryUsage
 
-在測試 VM 上使用 `stress-ng`：
+在測試 VM 上：
 
 ```bash
 sudo stress-ng --vm 1 --vm-bytes 90% --timeout 10m
-```
-
-測完確認 memory 回收：
-
-```bash
-free -m
+free -m  # 測完確認有回收
 ```
 
 ### 測試 DiskAlmostFull
 
-只在測試 VM 上操作，避免把正式機器 root filesystem 塞滿：
+只在測試 VM 上做，不要塞正式機器：
 
 ```bash
 df -h
@@ -311,61 +274,35 @@ rm -f /tmp/iac-disk-test.img
 
 ### 測試 HighLoadAverage
 
-先確認 CPU count：
-
 ```bash
-nproc
-uptime
+nproc   # 確認 CPU 數量
+uptime  # 看目前 load
 ```
 
-在測試 VM 上用 CPU 或 I/O 壓力製造 load，測完要恢復並觀察：
-
-```bash
-uptime
-```
-
-更完整的處理流程請看 `runbooks/`。
+在測試 VM 上製造 CPU 或 I/O 壓力，詳細流程看 `runbooks/`。
 
 ## Docker Target Mode
 
-Docker Target Mode 是 local demo，不需要 Linux server。Terraform 會建立幾個 HTTP app containers，Ansible 會讓 Prometheus 透過 blackbox exporter 探測 HTTP health。
-
-啟動：
+不需要 Linux server，純本機 demo。Terraform 建幾個 HTTP app container，Prometheus 透過 blackbox exporter 探測 HTTP health。
 
 ```bash
 make docker-up ANSIBLE_FLAGS="--ask-become-pass"
-```
-
-調整 target 數量：
-
-```bash
 make docker-scale NODE_COUNT=3 ANSIBLE_FLAGS="--ask-become-pass"
-```
 
-模擬故障：
-
-```bash
+# 模擬故障
 docker stop iac-lab-app-node-01
-```
 
-恢復 desired state：
-
-```bash
+# 恢復
 terraform -chdir=infra/docker/terraform apply
 make server-stack ANSIBLE_FLAGS="--ask-become-pass"
-```
 
-清除：
-
-```bash
+# 清掉
 make docker-down ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
-## Backup and Restore
+## 備份與還原
 
-這個 repo 不放多支 backup/restore scripts。正式設定以 Git + Ansible template 為來源；如果現場有 runtime 變更，再手動備份。
-
-備份 control node 上的 monitoring config：
+設定以 Git + Ansible template 為主，重跑 Ansible 就是還原。有手動改過 runtime 設定的話，先備份：
 
 ```bash
 backup_dir="backups/manual-$(date +%Y%m%d-%H%M%S)"
@@ -376,47 +313,36 @@ sudo cp -a /opt/iac-monitoring-stack/rules "$backup_dir/" 2>/dev/null || true
 sudo cp -a /opt/iac-monitoring-stack/grafana/dashboards "$backup_dir/" 2>/dev/null || true
 ```
 
-用 repo 內設定還原：
+用 repo 還原：
 
 ```bash
 make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 make verify-stack
 ```
 
-若要還原手動備份，先確認內容，再複製回 `/opt/iac-monitoring-stack/`，接著重啟相關 container 或重跑 Ansible。
+手動備份還原的話，確認內容後複製回 `/opt/iac-monitoring-stack/`，再重啟相關 container 或重跑 Ansible。
 
 ## Troubleshooting
 
-### Terraform 目錄錯誤
+**Terraform 看到 "initialized in an empty directory"**
 
-如果看到：
-
-```text
-Terraform initialized in an empty directory!
-```
-
-代表你目前不在有 `.tf` 檔案的 Terraform 目錄。回到專案根目錄後再進入正確路徑：
+代表你不在有 `.tf` 的目錄，回到根目錄：
 
 ```bash
 cd /home/ianhsu/Projects/iac-monitoring-system
 ls infra/server/terraform/*.tf
 ```
 
-### Ansible 連不上 target
+**Ansible 連不上 target**
 
 ```bash
 cat ansible/inventory.ini
 ansible -i ansible/inventory.ini monitoring_agents -m ping
 ```
 
-確認：
+確認 IP 對、SSH user 對、key 或 `--ask-pass` 符合登入方式、target 允許 sudo。
 
-- IP 是否正確
-- SSH user 是否正確
-- key path 或 `--ask-pass` 是否符合登入方式
-- target server 是否允許 sudo
-
-### Prometheus 看不到 target
+**Prometheus 看不到 target**
 
 ```bash
 terraform -chdir=infra/server/terraform output
@@ -424,13 +350,13 @@ cat ansible/inventory.ini
 curl http://localhost:9090/api/v1/targets
 ```
 
-如果 inventory 改了，重新部署 stack：
+Inventory 改了要重跑：
 
 ```bash
 make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
-### Node Exporter 沒資料
+**Node Exporter 沒資料**
 
 ```bash
 sudo systemctl status node_exporter
@@ -438,7 +364,7 @@ sudo journalctl -u node_exporter --no-pager -n 100
 curl http://localhost:9100/metrics | grep node_cpu_seconds_total
 ```
 
-### Python agent 沒資料
+**Python agent 沒資料**
 
 ```bash
 sudo systemctl status monitor-agent
@@ -447,7 +373,7 @@ sudo tail -n 50 /var/log/monitor-agent.log
 curl http://localhost:8000/metrics
 ```
 
-### Grafana 沒 dashboard
+**Grafana 沒 dashboard**
 
 ```bash
 docker logs grafana --tail 100
@@ -455,7 +381,7 @@ ls -l /opt/iac-monitoring-stack/grafana/dashboards
 make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
-### Alertmanager 沒啟動
+**Alertmanager 沒起來**
 
 ```bash
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
@@ -463,9 +389,9 @@ docker logs alertmanager --tail 100
 curl http://localhost:9093/-/healthy
 ```
 
-## 清除 AWS Server Agent Mode
+## 清除 AWS 資源
 
-如果你有打開 `enable_aws_resources=true` 建立 EC2，練習完請刪除，避免產生費用：
+如果有開 `enable_aws_resources=true` 建 EC2，練習完記得刪掉：
 
 ```bash
 make server-aws-destroy
