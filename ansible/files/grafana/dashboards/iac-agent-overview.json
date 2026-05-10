@@ -28,48 +28,36 @@
       },
       "fieldConfig": {
         "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
           "color": {
             "mode": "thresholds"
-          },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "red",
-                  "text": "DOWN"
-                },
-                "1": {
-                  "color": "green",
-                  "text": "UP"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          },
-          "unit": "short"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
-        "w": 6,
         "x": 0,
-        "y": 0
+        "y": 0,
+        "w": 4,
+        "h": 4
       },
       "id": 1,
+      "pluginVersion": "11.2.0",
+      "title": "Agent Up",
+      "type": "stat",
       "options": {
         "colorMode": "background",
         "graphMode": "none",
@@ -85,16 +73,19 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "up{job=\"monitor-agent\"}",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(up{job=\"monitor-agent\"})",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
         }
-      ],
-      "title": "Agent Metrics Endpoint",
-      "type": "stat"
+      ]
     },
     {
       "datasource": {
@@ -103,38 +94,24 @@
       },
       "fieldConfig": {
         "defaults": {
-          "decimals": 1,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 70
-              },
-              {
-                "color": "red",
-                "value": 90
-              }
-            ]
-          },
-          "unit": "percent"
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 6,
-        "y": 0
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
       },
       "id": 2,
+      "pluginVersion": "11.2.0",
+      "title": "Agent Total",
+      "type": "stat",
       "options": {
-        "minVizHeight": 75,
-        "minVizWidth": 75,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -143,20 +120,22 @@
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sizing": "auto"
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "monitor_agent_cpu_percent",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count(up{job=\"monitor-agent\"})",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
         }
-      ],
-      "title": "Agent CPU Sample",
-      "type": "gauge"
+      ]
     },
     {
       "datasource": {
@@ -165,6 +144,139 @@
       },
       "fieldConfig": {
         "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "id": 3,
+      "pluginVersion": "11.2.0",
+      "title": "Agent Down",
+      "type": "stat",
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count(up{job=\"monitor-agent\"} == 0)",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "id": 4,
+      "pluginVersion": "11.2.0",
+      "title": "Failed Checks",
+      "type": "stat",
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count(monitor_agent_network_check_success == 0)",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
           "decimals": 1,
           "thresholds": {
             "mode": "absolute",
@@ -183,151 +295,22 @@
               }
             ]
           },
-          "unit": "percent"
+          "color": {
+            "mode": "thresholds"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 12,
-        "y": 0
-      },
-      "id": 3,
-      "options": {
-        "minVizHeight": 75,
-        "minVizWidth": 75,
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sizing": "auto"
-      },
-      "pluginVersion": "11.2.0",
-      "targets": [
-        {
-          "expr": "monitor_agent_memory_percent",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Agent Memory Sample",
-      "type": "gauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "decimals": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              },
-              {
-                "color": "red",
-                "value": 5
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 18,
-        "y": 0
-      },
-      "id": 4,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.2.0",
-      "targets": [
-        {
-          "expr": "monitor_agent_zombie_process_count",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Zombie Processes",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "red",
-                  "text": "FAILED"
-                },
-                "1": {
-                  "color": "green",
-                  "text": "OK"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 5
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
       },
       "id": 5,
+      "pluginVersion": "11.2.0",
+      "title": "Max CPU Sample",
+      "type": "stat",
       "options": {
         "colorMode": "background",
         "graphMode": "none",
@@ -343,17 +326,19 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "monitor_agent_network_check_success",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(monitor_agent_cpu_percent)",
+          "refId": "A",
           "instant": true,
-          "legendFormat": "{{instance}} {{type}}/{{name}} {{host}}:{{port}}",
-          "refId": "A"
+          "range": false,
+          "format": "time_series"
         }
-      ],
-      "title": "Network Check Status",
-      "type": "stat"
+      ]
     },
     {
       "datasource": {
@@ -362,77 +347,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 4,
-            "showPoints": "never",
-            "spanNulls": false
-          },
-          "decimals": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 5
-      },
-      "id": 6,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.2.0",
-      "targets": [
-        {
-          "expr": "monitor_agent_network_check_attempts",
-          "legendFormat": "{{instance}} {{type}}/{{name}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Network Check Attempts",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 12,
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 4,
-            "showPoints": "never",
-            "spanNulls": false
-          },
+          "unit": "percent",
           "decimals": 1,
           "thresholds": {
             "mode": "absolute",
@@ -440,49 +355,61 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 75
+              },
+              {
+                "color": "red",
+                "value": 90
               }
             ]
           },
-          "unit": "percent"
+          "color": {
+            "mode": "thresholds"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 13
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
       },
-      "id": 7,
+      "id": 6,
+      "pluginVersion": "11.2.0",
+      "title": "Max Memory Sample",
+      "type": "stat",
       "options": {
-        "legend": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "monitor_agent_cpu_percent",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
-        },
-        {
-          "expr": "monitor_agent_memory_percent",
-          "legendFormat": "{{instance}} memory",
-          "refId": "B"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(monitor_agent_memory_percent)",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
         }
-      ],
-      "title": "Agent Resource Samples",
-      "type": "timeseries"
+      ]
     },
     {
       "datasource": {
@@ -491,52 +418,20 @@
       },
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false
-          },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "red",
-                  "text": "FAILED"
-                },
-                "1": {
-                  "color": "green",
-                  "text": "OK"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          },
           "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 13
+        "x": 0,
+        "y": 4,
+        "w": 8,
+        "h": 7
       },
-      "id": 8,
+      "id": 7,
+      "pluginVersion": "11.2.0",
+      "title": "Agents Down",
+      "type": "table",
       "options": {
         "cellHeight": "sm",
         "footer": {
@@ -549,55 +444,356 @@
         },
         "showHeader": true
       },
-      "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "monitor_agent_network_check_success",
-          "format": "table",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "up{job=\"monitor-agent\"} == 0",
+          "refId": "A",
           "instant": true,
-          "legendFormat": "{{instance}} {{type}}/{{name}} {{host}}:{{port}}",
-          "refId": "A"
+          "range": false,
+          "format": "table"
         }
-      ],
-      "title": "Network Check Detail",
-      "transformations": [
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 4,
+        "w": 16,
+        "h": 7
+      },
+      "id": 8,
+      "pluginVersion": "11.2.0",
+      "title": "Failed Network Checks",
+      "type": "table",
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
         {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true,
-              "job": true
-            },
-            "indexByName": {},
-            "renameByName": {
-              "Value": "status"
-            }
-          }
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "monitor_agent_network_check_success == 0",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
         }
-      ],
-      "type": "table"
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 11
+      },
+      "id": 9,
+      "pluginVersion": "11.2.0",
+      "title": "Top Agent CPU Samples",
+      "type": "table",
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(10, monitor_agent_cpu_percent)",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 11
+      },
+      "id": 10,
+      "pluginVersion": "11.2.0",
+      "title": "Top Agent Memory Samples",
+      "type": "table",
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(10, monitor_agent_memory_percent)",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 11
+      },
+      "id": 13,
+      "pluginVersion": "11.2.0",
+      "title": "Zombie Processes",
+      "type": "table",
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "monitor_agent_zombie_process_count > 0",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 12,
+        "h": 8
+      },
+      "id": 11,
+      "pluginVersion": "11.2.0",
+      "title": "Fleet CPU / Memory Samples",
+      "type": "timeseries",
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "avg(monitor_agent_cpu_percent)",
+          "refId": "A",
+          "legendFormat": "avg cpu",
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(monitor_agent_cpu_percent)",
+          "refId": "B",
+          "legendFormat": "max cpu",
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "avg(monitor_agent_memory_percent)",
+          "refId": "C",
+          "legendFormat": "avg memory",
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(monitor_agent_memory_percent)",
+          "refId": "D",
+          "legendFormat": "max memory",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 18,
+        "w": 12,
+        "h": 8
+      },
+      "id": 12,
+      "pluginVersion": "11.2.0",
+      "title": "Network Check Failure Count",
+      "type": "timeseries",
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(monitor_agent_network_check_success == 0)",
+          "refId": "A",
+          "legendFormat": "failed checks",
+          "format": "time_series"
+        }
+      ]
     }
   ],
-  "refresh": "10s",
+  "refresh": "30s",
   "schemaVersion": 39,
   "tags": [
-    "terraform",
-    "ansible",
     "agent",
-    "prometheus"
+    "fleet",
+    "iac-monitoring-system"
   ],
   "templating": {
     "list": []
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-6h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "IaC Agent Overview",
+  "title": "IaC Agent Fleet Overview",
   "uid": "iac-agent-overview",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

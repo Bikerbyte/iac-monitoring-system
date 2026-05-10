@@ -28,24 +28,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "red",
-                  "text": "DOWN"
-                },
-                "1": {
-                  "color": "green",
-                  "text": "UP"
-                }
-              },
-              "type": "value"
-            }
-          ],
+          "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -59,17 +42,22 @@
               }
             ]
           },
-          "unit": "short"
+          "color": {
+            "mode": "thresholds"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 8,
         "x": 0,
-        "y": 0
+        "y": 0,
+        "w": 4,
+        "h": 4
       },
       "id": 1,
+      "pluginVersion": "11.2.0",
+      "title": "Targets Up",
+      "type": "stat",
       "options": {
         "colorMode": "background",
         "graphMode": "none",
@@ -85,16 +73,19 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "probe_success{job=\"docker-target-http\"}",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(probe_success{job=\"docker-target-http\"})",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
         }
-      ],
-      "title": "Simulated App Health",
-      "type": "stat"
+      ]
     },
     {
       "datasource": {
@@ -103,30 +94,23 @@
       },
       "fieldConfig": {
         "defaults": {
-          "decimals": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
           "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 8,
-        "x": 8,
-        "y": 0
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
       },
       "id": 2,
+      "pluginVersion": "11.2.0",
+      "title": "Targets Total",
+      "type": "stat",
       "options": {
         "colorMode": "value",
-        "graphMode": "area",
+        "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -139,16 +123,19 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.0",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "count(probe_success{job=\"docker-target-http\"})",
-          "legendFormat": "containers",
-          "refId": "A"
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
         }
-      ],
-      "title": "Terraform Managed Containers",
-      "type": "stat"
+      ]
     },
     {
       "datasource": {
@@ -157,6 +144,73 @@
       },
       "fieldConfig": {
         "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "id": 3,
+      "pluginVersion": "11.2.0",
+      "title": "Targets Down",
+      "type": "stat",
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count(probe_success{job=\"docker-target-http\"} == 0)",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
           "decimals": 3,
           "thresholds": {
             "mode": "absolute",
@@ -175,20 +229,26 @@
               }
             ]
           },
-          "unit": "s"
+          "color": {
+            "mode": "thresholds"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 8,
-        "x": 16,
-        "y": 0
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
       },
-      "id": 3,
+      "id": 4,
+      "pluginVersion": "11.2.0",
+      "title": "Avg Latency",
+      "type": "stat",
       "options": {
-        "minVizHeight": 75,
-        "minVizWidth": 75,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -197,20 +257,22 @@
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sizing": "auto"
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "probe_duration_seconds{job=\"docker-target-http\"}",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "avg(probe_duration_seconds{job=\"docker-target-http\"})",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
         }
-      ],
-      "title": "HTTP Probe Duration",
-      "type": "gauge"
+      ]
     },
     {
       "datasource": {
@@ -219,15 +281,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 12,
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 4,
-            "showPoints": "never",
-            "spanNulls": false
-          },
+          "unit": "s",
           "decimals": 3,
           "thresholds": {
             "mode": "absolute",
@@ -235,44 +289,61 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
               }
             ]
           },
-          "unit": "s"
+          "color": {
+            "mode": "thresholds"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 0,
-        "y": 6
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
       },
-      "id": 4,
+      "id": 5,
+      "pluginVersion": "11.2.0",
+      "title": "Max Latency",
+      "type": "stat",
       "options": {
-        "legend": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "probe_duration_seconds{job=\"docker-target-http\"}",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(probe_duration_seconds{job=\"docker-target-http\"})",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
         }
-      ],
-      "title": "HTTP Latency Trend",
-      "type": "timeseries"
+      ]
     },
     {
       "datasource": {
@@ -281,35 +352,234 @@
       },
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 4,
-            "showPoints": "never",
-            "spanNulls": false
-          },
+          "unit": "percent",
+          "decimals": 1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "red",
                 "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 95
+              },
+              {
+                "color": "green",
+                "value": 99
               }
             ]
           },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "id": 6,
+      "pluginVersion": "11.2.0",
+      "title": "Availability 5m",
+      "type": "stat",
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "avg(avg_over_time(probe_success{job=\"docker-target-http\"}[5m])) * 100",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
           "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 12,
-        "y": 6
+        "x": 0,
+        "y": 4,
+        "w": 8,
+        "h": 7
       },
-      "id": 5,
+      "id": 7,
+      "pluginVersion": "11.2.0",
+      "title": "Down Docker Targets",
+      "type": "table",
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "probe_success{job=\"docker-target-http\"} == 0",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 4,
+        "w": 8,
+        "h": 7
+      },
+      "id": 8,
+      "pluginVersion": "11.2.0",
+      "title": "Slowest Docker Targets",
+      "type": "table",
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(10, probe_duration_seconds{job=\"docker-target-http\"})",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 4,
+        "w": 8,
+        "h": 7
+      },
+      "id": 9,
+      "pluginVersion": "11.2.0",
+      "title": "HTTP Status Codes",
+      "type": "table",
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "probe_http_status_code{job=\"docker-target-http\"}",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 12,
+        "h": 8
+      },
+      "id": 10,
+      "pluginVersion": "11.2.0",
+      "title": "Availability Trend",
+      "type": "timeseries",
       "options": {
         "legend": {
           "calcs": [
@@ -321,40 +591,101 @@
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
-      "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "probe_success{job=\"docker-target-http\"}",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "avg(probe_success{job=\"docker-target-http\"}) * 100",
+          "refId": "A",
+          "legendFormat": "availability",
+          "format": "time_series"
         }
-      ],
-      "title": "Availability Trend",
-      "type": "timeseries"
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 11,
+        "w": 12,
+        "h": 8
+      },
+      "id": 11,
+      "pluginVersion": "11.2.0",
+      "title": "Latency Trend",
+      "type": "timeseries",
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "avg(probe_duration_seconds{job=\"docker-target-http\"})",
+          "refId": "A",
+          "legendFormat": "avg latency",
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(probe_duration_seconds{job=\"docker-target-http\"})",
+          "refId": "B",
+          "legendFormat": "max latency",
+          "format": "time_series"
+        }
+      ]
     }
   ],
-  "refresh": "5s",
+  "refresh": "30s",
   "schemaVersion": 39,
   "tags": [
-    "terraform",
-    "ansible",
     "docker",
-    "grafana"
+    "blackbox",
+    "fleet",
+    "iac-monitoring-system"
   ],
   "templating": {
     "list": []
   },
   "time": {
-    "from": "now-15m",
+    "from": "now-6h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "IaC Docker Target Overview",
+  "title": "IaC Docker Target Fleet Overview",
   "uid": "iac-docker-target",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }
