@@ -9,7 +9,7 @@
     agent_config_dir: /etc/monitor-agent
     agent_venv_dir: /opt/monitor-agent/venv
     agent_log_file: /var/log/monitor-agent.log
-    agent_config_src: ../agent/config.yml
+    agent_config_src: "{{ playbook_dir }}/../agent/config.yml"
 
   tasks:
     - name: Update apt package cache on Debian based hosts
@@ -45,7 +45,7 @@
 
     - name: Deploy monitoring agent script
       ansible.builtin.copy:
-        src: ../agent/agent.py
+        src: "{{ playbook_dir }}/../agent/agent.py"
         dest: "{{ agent_app_dir }}/agent.py"
         owner: root
         group: root
@@ -63,7 +63,7 @@
 
     - name: Deploy Python requirements
       ansible.builtin.copy:
-        src: ../requirements.txt
+        src: "{{ playbook_dir }}/../requirements.txt"
         dest: "{{ agent_app_dir }}/requirements.txt"
         owner: root
         group: root
@@ -95,7 +95,7 @@
 
     - name: Deploy systemd service
       ansible.builtin.copy:
-        src: ../systemd/monitor-agent.service
+        src: "{{ playbook_dir }}/../systemd/monitor-agent.service"
         dest: /etc/systemd/system/monitor-agent.service
         owner: root
         group: root
