@@ -183,6 +183,23 @@ Agent log format (one JSON object per line):
 
 Follow logs with `journalctl -u monitor-agent -f` or `tail -f /var/log/monitor-agent.log`. The JSON format makes it easy to pipe into Filebeat, Promtail, or just `jq`.
 
+Agent Prometheus metrics:
+
+```text
+monitor_agent_cpu_percent
+monitor_agent_memory_percent
+monitor_agent_zombie_process_count
+monitor_agent_network_check_success
+monitor_agent_network_check_attempts
+monitor_agent_network_check_last_run_timestamp_seconds
+monitor_agent_network_check_latency_ms
+monitor_agent_network_check_failure
+```
+
+`monitor_agent_network_check_latency_ms` and `monitor_agent_network_check_failure` are used by the Grafana fleet dashboard for latency trend and failure type breakdown. Existing metric names are kept for compatibility.
+
+Grafana dashboards include an `instance` dropdown. Leave it on `All` for fleet overview, or select one node when you need a focused investigation.
+
 ## Alerts
 
 Rules live in `ansible/files/prometheus/rules/linux-alerts.yml` and get pushed to Prometheus by Ansible:
