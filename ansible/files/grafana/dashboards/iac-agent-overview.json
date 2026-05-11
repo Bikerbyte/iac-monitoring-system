@@ -428,7 +428,7 @@
       },
       "id": 7,
       "pluginVersion": "11.2.0",
-      "title": "Agents Down",
+      "title": "Agents Down (empty = healthy)",
       "type": "table",
       "options": {
         "cellHeight": "sm",
@@ -475,7 +475,7 @@
       },
       "id": 8,
       "pluginVersion": "11.2.0",
-      "title": "Failed Network Checks",
+      "title": "Failed Network Checks (empty = healthy)",
       "type": "table",
       "options": {
         "cellHeight": "sm",
@@ -522,7 +522,7 @@
       },
       "id": 9,
       "pluginVersion": "11.2.0",
-      "title": "Failure Type Breakdown",
+      "title": "Active Failure Types",
       "type": "barchart",
       "options": {
         "barRadius": 0,
@@ -551,7 +551,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (failure_type) (monitor_agent_network_check_failure{instance=~\"$instance\"} == 1)",
+          "expr": "sum by (failure_type) (monitor_agent_network_check_failure{instance=~\"$instance\",failure_type!=\"none\"}) or vector(0)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -768,6 +768,25 @@
           "range": false,
           "format": "table"
         }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true
+            },
+            "indexByName": {
+              "instance": 0,
+              "CPU %": 1
+            },
+            "renameByName": {
+              "Value": "CPU %"
+            }
+          }
+        }
       ]
     },
     {
@@ -816,6 +835,25 @@
           "range": false,
           "format": "table"
         }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true
+            },
+            "indexByName": {
+              "instance": 0,
+              "Memory %": 1
+            },
+            "renameByName": {
+              "Value": "Memory %"
+            }
+          }
+        }
       ]
     },
     {
@@ -862,6 +900,25 @@
           "instant": true,
           "range": false,
           "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true
+            },
+            "indexByName": {
+              "instance": 0,
+              "Zombies": 1
+            },
+            "renameByName": {
+              "Value": "Zombies"
+            }
+          }
         }
       ]
     },
@@ -1104,6 +1161,29 @@
           "instant": true,
           "range": false,
           "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true
+            },
+            "indexByName": {
+              "instance": 0,
+              "type": 1,
+              "name": 2,
+              "host": 3,
+              "port": 4,
+              "Success": 5
+            },
+            "renameByName": {
+              "Value": "Success"
+            }
+          }
         }
       ]
     }
