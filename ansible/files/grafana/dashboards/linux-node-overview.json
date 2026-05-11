@@ -432,7 +432,7 @@
       },
       "id": 7,
       "pluginVersion": "11.2.0",
-      "title": "Node Exporter Down",
+      "title": "Node Exporter Down (empty = healthy)",
       "type": "table",
       "options": {
         "cellHeight": "sm",
@@ -506,6 +506,25 @@
           "range": false,
           "format": "table"
         }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true
+            },
+            "indexByName": {
+              "instance": 0,
+              "CPU %": 1
+            },
+            "renameByName": {
+              "Value": "CPU %"
+            }
+          }
+        }
       ]
     },
     {
@@ -553,6 +572,25 @@
           "instant": true,
           "range": false,
           "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true
+            },
+            "indexByName": {
+              "instance": 0,
+              "Memory %": 1
+            },
+            "renameByName": {
+              "Value": "Memory %"
+            }
+          }
         }
       ]
     },
@@ -602,6 +640,28 @@
           "range": false,
           "format": "table"
         }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true
+            },
+            "indexByName": {
+              "instance": 0,
+              "mountpoint": 1,
+              "device": 2,
+              "fstype": 3,
+              "Disk Used %": 4
+            },
+            "renameByName": {
+              "Value": "Disk Used %"
+            }
+          }
+        }
       ]
     },
     {
@@ -648,6 +708,25 @@
           "instant": true,
           "range": false,
           "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true
+            },
+            "indexByName": {
+              "instance": 0,
+              "Load 5m": 1
+            },
+            "renameByName": {
+              "Value": "Load 5m"
+            }
+          }
         }
       ]
     },
