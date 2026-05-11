@@ -26,7 +26,7 @@ from prometheus_client import Gauge, start_http_server
 DEFAULT_CONFIG_PATH = "/etc/monitor-agent/config.yml"
 DEFAULT_LOG_FILE = "/var/log/monitor-agent.log"
 DEFAULT_METRICS_PORT = 8000
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 HOSTNAME = socket.gethostname()
 
 
@@ -48,6 +48,17 @@ NETWORK_CHECK_LAST_RUN = Gauge(
     "Unix timestamp of the latest network check result.",
     ["type", "name", "host", "port"],
 )
+NETWORK_CHECK_LATENCY_MS = Gauge(
+    "monitor_agent_network_check_latency_ms",
+    "Latency of the latest network check in milliseconds.",
+    ["type", "name", "host", "port"],
+)
+NETWORK_CHECK_FAILURE = Gauge(
+    "monitor_agent_network_check_failure",
+    "Network check failure state by failure type. 1 means the latest check failed with this failure type.",
+    ["type", "name", "host", "port", "failure_type"],
+)
+LAST_NETWORK_FAILURE_TYPES: dict[tuple[str, str, str, str], str] = {}
 
 
 @dataclass
@@ -193,9 +204,11 @@ def check_dns(target: DnsTarget) -> CheckOutcome:
         latency_ms = round((time.monotonic() - start_time) * 1000, 2)
         return CheckOutcome(True, None, "resolved", latency_ms)
     except socket.gaierror as ex:
-        return CheckOutcome(False, "dns_resolution_error", str(ex), None)
+        latency_ms = round((time.monotonic() - start_time) * 1000, 2)
+        return CheckOutcome(False, "dns_resolution_error", str(ex), latency_ms)
     except OSError as ex:
-        return CheckOutcome(False, "generic_socket_error", str(ex), None)
+        latency_ms = round((time.monotonic() - start_time) * 1000, 2)
+        return CheckOutcome(False, "generic_socket_error", str(ex), latency_ms)
 
 
 def check_tcp(target: TcpTarget) -> CheckOutcome:
@@ -206,11 +219,14 @@ def check_tcp(target: TcpTarget) -> CheckOutcome:
             latency_ms = round((time.monotonic() - start_time) * 1000, 2)
             return CheckOutcome(True, None, "connected", latency_ms)
     except socket.timeout as ex:
-        return CheckOutcome(False, "tcp_connection_timeout", str(ex), None)
+        latency_ms = round((time.monotonic() - start_time) * 1000, 2)
+        return CheckOutcome(False, "tcp_connection_timeout", str(ex), latency_ms)
     except ConnectionRefusedError as ex:
-        return CheckOutcome(False, "tcp_connection_refused", str(ex), None)
+        latency_ms = round((time.monotonic() - start_time) * 1000, 2)
+        return CheckOutcome(False, "tcp_connection_refused", str(ex), latency_ms)
     except OSError as ex:
-        return CheckOutcome(False, "tcp_connection_error", str(ex), None)
+        latency_ms = round((time.monotonic() - start_time) * 1000, 2)
+        return CheckOutcome(False, "tcp_connection_error", str(ex), latency_ms)
 
 
 def run_with_retry(
@@ -292,6 +308,9 @@ def log_check_result(
     NETWORK_CHECK_SUCCESS.labels(check_type, name, host, port_label).set(1 if outcome.ok else 0)
     NETWORK_CHECK_ATTEMPTS.labels(check_type, name, host, port_label).set(attempts)
     NETWORK_CHECK_LAST_RUN.labels(check_type, name, host, port_label).set(time.time())
+    if outcome.latency_ms is not None:
+        NETWORK_CHECK_LATENCY_MS.labels(check_type, name, host, port_label).set(outcome.latency_ms)
+    update_failure_metric(check_type, name, host, port_label, outcome)
 
     write_log(
         level,
@@ -307,6 +326,26 @@ def log_check_result(
         detail=outcome.message,
         latency_ms=outcome.latency_ms,
     )
+
+
+def update_failure_metric(
+    check_type: str,
+    name: str,
+    host: str,
+    port_label: str,
+    outcome: CheckOutcome,
+) -> None:
+    check_key = (check_type, name, host, port_label)
+    previous_failure_type = LAST_NETWORK_FAILURE_TYPES.pop(check_key, None)
+
+    if previous_failure_type:
+        NETWORK_CHECK_FAILURE.labels(check_type, name, host, port_label, previous_failure_type).set(0)
+
+    if outcome.ok or not outcome.failure_type:
+        return
+
+    NETWORK_CHECK_FAILURE.labels(check_type, name, host, port_label, outcome.failure_type).set(1)
+    LAST_NETWORK_FAILURE_TYPES[check_key] = outcome.failure_type
 
 
 def parse_args() -> argparse.Namespace:

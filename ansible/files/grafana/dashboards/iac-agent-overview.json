@@ -79,7 +79,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(up{job=\"monitor-agent\"})",
+          "expr": "sum(up{job=\"monitor-agent\",instance=~\"$instance\"})",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -129,7 +129,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(up{job=\"monitor-agent\"})",
+          "expr": "count(up{job=\"monitor-agent\",instance=~\"$instance\"})",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -195,7 +195,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(up{job=\"monitor-agent\"} == 0)",
+          "expr": "count(up{job=\"monitor-agent\",instance=~\"$instance\"} == 0)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -261,7 +261,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(monitor_agent_network_check_success == 0)",
+          "expr": "count(monitor_agent_network_check_success{instance=~\"$instance\"} == 0)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -276,8 +276,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
-          "decimals": 1,
+          "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -287,11 +286,11 @@
               },
               {
                 "color": "yellow",
-                "value": 70
+                "value": 1
               },
               {
                 "color": "red",
-                "value": 90
+                "value": 3
               }
             ]
           },
@@ -309,7 +308,7 @@
       },
       "id": 5,
       "pluginVersion": "11.2.0",
-      "title": "Max CPU Sample",
+      "title": "High CPU Nodes",
       "type": "stat",
       "options": {
         "colorMode": "background",
@@ -332,7 +331,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max(monitor_agent_cpu_percent)",
+          "expr": "count(monitor_agent_cpu_percent{instance=~\"$instance\"} > 85)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -347,8 +346,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
-          "decimals": 1,
+          "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -358,11 +356,11 @@
               },
               {
                 "color": "yellow",
-                "value": 75
+                "value": 1
               },
               {
                 "color": "red",
-                "value": 90
+                "value": 3
               }
             ]
           },
@@ -380,7 +378,7 @@
       },
       "id": 6,
       "pluginVersion": "11.2.0",
-      "title": "Max Memory Sample",
+      "title": "High Memory Nodes",
       "type": "stat",
       "options": {
         "colorMode": "background",
@@ -403,7 +401,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max(monitor_agent_memory_percent)",
+          "expr": "count(monitor_agent_memory_percent{instance=~\"$instance\"} > 90)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -450,7 +448,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "up{job=\"monitor-agent\"} == 0",
+          "expr": "up{job=\"monitor-agent\",instance=~\"$instance\"} == 0",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -472,7 +470,7 @@
       "gridPos": {
         "x": 8,
         "y": 4,
-        "w": 16,
+        "w": 8,
         "h": 7
       },
       "id": 8,
@@ -497,7 +495,63 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "monitor_agent_network_check_success == 0",
+          "expr": "monitor_agent_network_check_success{instance=~\"$instance\"} == 0",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 4,
+        "w": 8,
+        "h": 7
+      },
+      "id": 9,
+      "pluginVersion": "11.2.0",
+      "title": "Failure Type Breakdown",
+      "type": "barchart",
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.7,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (failure_type) (monitor_agent_network_check_failure{instance=~\"$instance\"} == 1)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -518,12 +572,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 0,
-        "y": 11
+        "y": 11,
+        "w": 8,
+        "h": 7
       },
-      "id": 9,
+      "id": 10,
       "pluginVersion": "11.2.0",
       "title": "Top Agent CPU Samples",
       "type": "table",
@@ -545,7 +599,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "topk(10, monitor_agent_cpu_percent)",
+          "expr": "topk(10, monitor_agent_cpu_percent{instance=~\"$instance\"})",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -566,12 +620,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 8,
-        "y": 11
+        "y": 11,
+        "w": 8,
+        "h": 7
       },
-      "id": 10,
+      "id": 11,
       "pluginVersion": "11.2.0",
       "title": "Top Agent Memory Samples",
       "type": "table",
@@ -593,7 +647,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "topk(10, monitor_agent_memory_percent)",
+          "expr": "topk(10, monitor_agent_memory_percent{instance=~\"$instance\"})",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -613,12 +667,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 16,
-        "y": 11
+        "y": 11,
+        "w": 8,
+        "h": 7
       },
-      "id": 13,
+      "id": 12,
       "pluginVersion": "11.2.0",
       "title": "Zombie Processes",
       "type": "table",
@@ -640,7 +694,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "monitor_agent_zombie_process_count > 0",
+          "expr": "monitor_agent_zombie_process_count{instance=~\"$instance\"} > 0",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -666,9 +720,9 @@
         "w": 12,
         "h": 8
       },
-      "id": 11,
+      "id": 13,
       "pluginVersion": "11.2.0",
-      "title": "Fleet CPU / Memory Samples",
+      "title": "CPU Trend",
       "type": "timeseries",
       "options": {
         "legend": {
@@ -690,39 +744,107 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg(monitor_agent_cpu_percent)",
+          "expr": "monitor_agent_cpu_percent{instance=~\"$instance\"}",
           "refId": "A",
-          "legendFormat": "avg cpu",
+          "legendFormat": "{{instance}}",
           "format": "time_series"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1
         },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 18,
+        "w": 12,
+        "h": 8
+      },
+      "id": 14,
+      "pluginVersion": "11.2.0",
+      "title": "Memory Trend",
+      "type": "timeseries",
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max(monitor_agent_cpu_percent)",
-          "refId": "B",
-          "legendFormat": "max cpu",
+          "expr": "monitor_agent_memory_percent{instance=~\"$instance\"}",
+          "refId": "A",
+          "legendFormat": "{{instance}}",
           "format": "time_series"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 1
         },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 12,
+        "h": 8
+      },
+      "id": 15,
+      "pluginVersion": "11.2.0",
+      "title": "Network Check Latency",
+      "type": "timeseries",
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg(monitor_agent_memory_percent)",
-          "refId": "C",
-          "legendFormat": "avg memory",
-          "format": "time_series"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "max(monitor_agent_memory_percent)",
-          "refId": "D",
-          "legendFormat": "max memory",
+          "expr": "monitor_agent_network_check_latency_ms{instance=~\"$instance\"}",
+          "refId": "A",
+          "legendFormat": "{{instance}} {{type}}/{{name}}",
           "format": "time_series"
         }
       ]
@@ -740,13 +862,13 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 18,
+        "y": 26,
         "w": 12,
         "h": 8
       },
-      "id": 12,
+      "id": 16,
       "pluginVersion": "11.2.0",
-      "title": "Network Check Failure Count",
+      "title": "Network Check Attempts",
       "type": "timeseries",
       "options": {
         "legend": {
@@ -768,10 +890,57 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(monitor_agent_network_check_success == 0)",
+          "expr": "monitor_agent_network_check_attempts{instance=~\"$instance\"}",
           "refId": "A",
-          "legendFormat": "failed checks",
+          "legendFormat": "{{instance}} {{type}}/{{name}}",
           "format": "time_series"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 24,
+        "h": 8
+      },
+      "id": 17,
+      "pluginVersion": "11.2.0",
+      "title": "Network Check Detail",
+      "type": "table",
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "monitor_agent_network_check_success{instance=~\"$instance\"}",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
         }
       ]
     }
@@ -784,7 +953,36 @@
     "iac-monitoring-system"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(up{job=\"monitor-agent\"}, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Instance",
+        "multi": true,
+        "name": "instance",
+        "options": [],
+        "query": {
+          "query": "label_values(up{job=\"monitor-agent\"}, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
   },
   "time": {
     "from": "now-6h",
@@ -794,6 +992,6 @@
   "timezone": "browser",
   "title": "IaC Agent Fleet Overview",
   "uid": "iac-agent-overview",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }

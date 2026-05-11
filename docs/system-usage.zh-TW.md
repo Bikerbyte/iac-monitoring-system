@@ -373,6 +373,15 @@ sudo tail -n 20 /var/log/monitor-agent.log | jq -r '.event'
 - `attempts`
 - `ok`
 
+Prometheus 也會暴露 network check 的診斷 metrics：
+
+```text
+monitor_agent_network_check_latency_ms
+monitor_agent_network_check_failure
+```
+
+Grafana 的 Agent / Linux dashboard 頂部都有 `instance` dropdown。平常用 `All` 看 fleet overview；要查單台時，選該 node 的 `instance`，CPU、memory、network latency、failure breakdown 會一起縮到單台。
+
 ### 看 control node containers
 
 ```bash
