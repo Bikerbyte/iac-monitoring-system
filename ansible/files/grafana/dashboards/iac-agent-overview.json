@@ -195,7 +195,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(up{job=\"monitor-agent\",instance=~\"$instance\"} == 0)",
+          "expr": "count(up{job=\"monitor-agent\",instance=~\"$instance\"} == 0) or vector(0)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -261,7 +261,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(monitor_agent_network_check_success{instance=~\"$instance\"} == 0)",
+          "expr": "count(monitor_agent_network_check_success{instance=~\"$instance\"} == 0) or vector(0)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -331,7 +331,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(monitor_agent_cpu_percent{instance=~\"$instance\"} > 85)",
+          "expr": "count(monitor_agent_cpu_percent{instance=~\"$instance\"} > 85) or vector(0)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -401,7 +401,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(monitor_agent_memory_percent{instance=~\"$instance\"} > 90)",
+          "expr": "count(monitor_agent_memory_percent{instance=~\"$instance\"} > 90) or vector(0)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -566,6 +566,169 @@
       },
       "fieldConfig": {
         "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Zombie Processes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 7
+      },
+      "id": 18,
+      "pluginVersion": "11.2.0",
+      "title": "Agent Per-node Snapshot",
+      "type": "table",
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "CPU %"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "monitor_agent_cpu_percent{instance=~\"$instance\"}",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": "CPU %"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "monitor_agent_memory_percent{instance=~\"$instance\"}",
+          "refId": "B",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": "Memory %"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "monitor_agent_zombie_process_count{instance=~\"$instance\"}",
+          "refId": "C",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": "Zombie Processes"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "instance",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "__name__": true,
+              "__name__ 1": true,
+              "__name__ 2": true,
+              "job": true,
+              "job 1": true,
+              "job 2": true
+            },
+            "indexByName": {
+              "instance": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3
+            },
+            "renameByName": {
+              "Value #A": "CPU %",
+              "Value #B": "Memory %",
+              "Value #C": "Zombie Processes"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
           "unit": "percent",
           "decimals": 1
         },
@@ -573,7 +736,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 11,
+        "y": 18,
         "w": 8,
         "h": 7
       },
@@ -621,7 +784,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 11,
+        "y": 18,
         "w": 8,
         "h": 7
       },
@@ -668,7 +831,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 11,
+        "y": 18,
         "w": 8,
         "h": 7
       },
@@ -716,7 +879,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 25,
         "w": 12,
         "h": 8
       },
@@ -765,7 +928,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 18,
+        "y": 25,
         "w": 12,
         "h": 8
       },
@@ -814,7 +977,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 33,
         "w": 12,
         "h": 8
       },
@@ -862,7 +1025,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 26,
+        "y": 33,
         "w": 12,
         "h": 8
       },
@@ -910,7 +1073,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 34,
+        "y": 41,
         "w": 24,
         "h": 8
       },

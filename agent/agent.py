@@ -338,6 +338,8 @@ def update_failure_metric(
     check_key = (check_type, name, host, port_label)
     previous_failure_type = LAST_NETWORK_FAILURE_TYPES.pop(check_key, None)
 
+    NETWORK_CHECK_FAILURE.labels(check_type, name, host, port_label, "none").set(0)
+
     if previous_failure_type:
         NETWORK_CHECK_FAILURE.labels(check_type, name, host, port_label, previous_failure_type).set(0)
 
