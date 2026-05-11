@@ -195,7 +195,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(up{job=\"node-exporter\",instance=~\"$instance\"} == 0)",
+          "expr": "count(up{job=\"node-exporter\",instance=~\"$instance\"} == 0) or vector(0)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -265,7 +265,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count((100 - (avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\",mode=\"idle\",instance=~\"$instance\"}[5m])) * 100)) > 85)",
+          "expr": "count((100 - (avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\",mode=\"idle\",instance=~\"$instance\"}[5m])) * 100)) > 85) or vector(0)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -335,7 +335,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(((1 - (node_memory_MemAvailable_bytes{job=\"node-exporter\",instance=~\"$instance\"} / node_memory_MemTotal_bytes{job=\"node-exporter\",instance=~\"$instance\"})) * 100) > 90)",
+          "expr": "count(((1 - (node_memory_MemAvailable_bytes{job=\"node-exporter\",instance=~\"$instance\"} / node_memory_MemTotal_bytes{job=\"node-exporter\",instance=~\"$instance\"})) * 100) > 90) or vector(0)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -405,7 +405,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(max by (instance) ((1 - (node_filesystem_avail_bytes{job=\"node-exporter\",fstype!~\"tmpfs|overlay|squashfs|ramfs\",instance=~\"$instance\"} / node_filesystem_size_bytes{job=\"node-exporter\",fstype!~\"tmpfs|overlay|squashfs|ramfs\",instance=~\"$instance\"})) * 100) > 85)",
+          "expr": "count(max by (instance) ((1 - (node_filesystem_avail_bytes{job=\"node-exporter\",fstype!~\"tmpfs|overlay|squashfs|ramfs\",instance=~\"$instance\"} / node_filesystem_size_bytes{job=\"node-exporter\",fstype!~\"tmpfs|overlay|squashfs|ramfs\",instance=~\"$instance\"})) * 100) > 85) or vector(0)",
           "refId": "A",
           "instant": true,
           "range": false,
