@@ -79,7 +79,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(up{job=\"node-exporter\"})",
+          "expr": "sum(up{job=\"node-exporter\",instance=~\"$instance\"})",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -129,7 +129,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(up{job=\"node-exporter\"})",
+          "expr": "count(up{job=\"node-exporter\",instance=~\"$instance\"})",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -195,7 +195,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(up{job=\"node-exporter\"} == 0)",
+          "expr": "count(up{job=\"node-exporter\",instance=~\"$instance\"} == 0)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -265,7 +265,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count((100 - (avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\",mode=\"idle\"}[5m])) * 100)) > 85)",
+          "expr": "count((100 - (avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\",mode=\"idle\",instance=~\"$instance\"}[5m])) * 100)) > 85)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -335,7 +335,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(((1 - (node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"})) * 100) > 90)",
+          "expr": "count(((1 - (node_memory_MemAvailable_bytes{job=\"node-exporter\",instance=~\"$instance\"} / node_memory_MemTotal_bytes{job=\"node-exporter\",instance=~\"$instance\"})) * 100) > 90)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -405,7 +405,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(max by (instance) ((1 - (node_filesystem_avail_bytes{job=\"node-exporter\",fstype!~\"tmpfs|overlay|squashfs|ramfs\"} / node_filesystem_size_bytes{job=\"node-exporter\",fstype!~\"tmpfs|overlay|squashfs|ramfs\"})) * 100) > 85)",
+          "expr": "count(max by (instance) ((1 - (node_filesystem_avail_bytes{job=\"node-exporter\",fstype!~\"tmpfs|overlay|squashfs|ramfs\",instance=~\"$instance\"} / node_filesystem_size_bytes{job=\"node-exporter\",fstype!~\"tmpfs|overlay|squashfs|ramfs\",instance=~\"$instance\"})) * 100) > 85)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -452,7 +452,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "up{job=\"node-exporter\"} == 0",
+          "expr": "up{job=\"node-exporter\",instance=~\"$instance\"} == 0",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -500,7 +500,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "topk(10, 100 - (avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\",mode=\"idle\"}[5m])) * 100))",
+          "expr": "topk(10, 100 - (avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\",mode=\"idle\",instance=~\"$instance\"}[5m])) * 100))",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -548,7 +548,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "topk(10, (1 - (node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"})) * 100)",
+          "expr": "topk(10, (1 - (node_memory_MemAvailable_bytes{job=\"node-exporter\",instance=~\"$instance\"} / node_memory_MemTotal_bytes{job=\"node-exporter\",instance=~\"$instance\"})) * 100)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -596,7 +596,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "topk(15, (1 - (node_filesystem_avail_bytes{job=\"node-exporter\",fstype!~\"tmpfs|overlay|squashfs|ramfs\"} / node_filesystem_size_bytes{job=\"node-exporter\",fstype!~\"tmpfs|overlay|squashfs|ramfs\"})) * 100)",
+          "expr": "topk(15, (1 - (node_filesystem_avail_bytes{job=\"node-exporter\",fstype!~\"tmpfs|overlay|squashfs|ramfs\",instance=~\"$instance\"} / node_filesystem_size_bytes{job=\"node-exporter\",fstype!~\"tmpfs|overlay|squashfs|ramfs\",instance=~\"$instance\"})) * 100)",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -643,7 +643,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "topk(10, node_load5{job=\"node-exporter\"})",
+          "expr": "topk(10, node_load5{job=\"node-exporter\",instance=~\"$instance\"})",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -671,7 +671,7 @@
       },
       "id": 12,
       "pluginVersion": "11.2.0",
-      "title": "Fleet CPU Trend",
+      "title": "CPU Trend",
       "type": "timeseries",
       "options": {
         "legend": {
@@ -693,19 +693,9 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg(100 - (avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\",mode=\"idle\"}[5m])) * 100))",
+          "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\",mode=\"idle\",instance=~\"$instance\"}[5m])) * 100)",
           "refId": "A",
-          "legendFormat": "avg cpu",
-          "format": "time_series"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "max(100 - (avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\",mode=\"idle\"}[5m])) * 100))",
-          "refId": "B",
-          "legendFormat": "max cpu",
+          "legendFormat": "{{instance}}",
           "format": "time_series"
         }
       ]
@@ -730,7 +720,7 @@
       },
       "id": 13,
       "pluginVersion": "11.2.0",
-      "title": "Fleet Memory Trend",
+      "title": "Memory Trend",
       "type": "timeseries",
       "options": {
         "legend": {
@@ -752,9 +742,105 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg((1 - (node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"})) * 100)",
+          "expr": "(1 - (node_memory_MemAvailable_bytes{job=\"node-exporter\",instance=~\"$instance\"} / node_memory_MemTotal_bytes{job=\"node-exporter\",instance=~\"$instance\"})) * 100",
           "refId": "A",
-          "legendFormat": "avg memory",
+          "legendFormat": "{{instance}}",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 12,
+        "h": 8
+      },
+      "id": 14,
+      "pluginVersion": "11.2.0",
+      "title": "Load Trend",
+      "type": "timeseries",
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "node_load5{job=\"node-exporter\",instance=~\"$instance\"}",
+          "refId": "A",
+          "legendFormat": "{{instance}} load5",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 27,
+        "w": 12,
+        "h": 8
+      },
+      "id": 15,
+      "pluginVersion": "11.2.0",
+      "title": "Network Traffic",
+      "type": "timeseries",
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (instance) (rate(node_network_receive_bytes_total{job=\"node-exporter\",device!~\"lo|docker.*|veth.*|br-.*\",instance=~\"$instance\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{instance}} receive",
           "format": "time_series"
         },
         {
@@ -762,9 +848,9 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max((1 - (node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"})) * 100)",
+          "expr": "sum by (instance) (rate(node_network_transmit_bytes_total{job=\"node-exporter\",device!~\"lo|docker.*|veth.*|br-.*\",instance=~\"$instance\"}[5m]))",
           "refId": "B",
-          "legendFormat": "max memory",
+          "legendFormat": "{{instance}} transmit",
           "format": "time_series"
         }
       ]
@@ -779,7 +865,36 @@
     "iac-monitoring-system"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(up{job=\"node-exporter\"}, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Instance",
+        "multi": true,
+        "name": "instance",
+        "options": [],
+        "query": {
+          "query": "label_values(up{job=\"node-exporter\"}, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
   },
   "time": {
     "from": "now-6h",
@@ -789,6 +904,6 @@
   "timezone": "browser",
   "title": "Linux Fleet Overview",
   "uid": "linux-node-overview",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }
