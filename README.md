@@ -68,6 +68,13 @@ systemd/
   monitor-agent.service
 ```
 
+## Demo
+
+<img width="1920" height="1400" alt="grafana-agent-overview" src="https://github.com/user-attachments/assets/ff5b0b91-8d08-44d4-8c97-95ea5432cb38" />
+<img width="1920" height="1400" alt="grafana-linux-overview" src="https://github.com/user-attachments/assets/7e4a08b8-aeb7-4df4-8369-330d04509eae" />
+
+
+
 ## Prerequisites
 
 - Terraform >= 1.5
