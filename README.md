@@ -1,11 +1,15 @@
 # iac-monitoring-system
 
-這是一個用 Terraform 和 Ansible 建立的 Linux 監控實驗專案。
+一個以 **Terraform + Ansible** 建置的 AWS EC2 / Linux 監控系統，目標是將主機清單管理、監控 Agent 部署、Prometheus / Grafana / Alertmanager 監控 stack 建置流程自動化
 
-Terraform 負責管理目標主機清單，也可以選擇建立 AWS EC2；Ansible 則把 Python monitoring agent、Node Exporter，以及 Prometheus / Grafana / Alertmanager 監控 stack 部署起來。部署完成後，Prometheus 會自動抓取 agent 與 Node Exporter metrics，Grafana 會載入預先準備好的 dashboard，Alertmanager 則負責接收告警。
+此專案可部署到既有 Linux server，也可選擇透過 Terraform 建立 AWS EC2 作為監控目標
+部署完成後，系統會自動安裝 Python monitoring agent、Node Exporter，並收集主機與服務層級 metrics
+並透過 Grafana 視覺化 datasource 與 dashboards，Alertmanager 則負責接收 Prometheus alerts
+
+設計重點是降低人工部署與設定成本，讓主機監控系統可以透過 Infrastructure as Code 的方式重複建置、快速擴充，並具備實際維運環境所需的基本監控、告警與 troubleshooting 能力
+
 
 這個專案主要有兩種使用情境：
-
 - **Server Agent Mode**：部署到真實 Linux server 或 AWS EC2。
 - **Docker Target Mode**：在本機用 Docker target 快速展示監控流程。
 
