@@ -1,58 +1,59 @@
 # iac-monitoring-system
 
-一個以 Terraform + Ansible 建置的 AWS EC2 / Linux 監控系統，用於自動化主機清單管理、監控 Agent 部署，以及 Prometheus / Grafana / Alertmanager 監控 stack 建置流程。
+一套以 **Terraform + Ansible + Helm** 建置的 hybrid 監控系統，模擬真實 SRE 場景中 **Kubernetes 與傳統 Linux VM 並存** 的混合環境，並以 IaC 方式統一管理部署、監控與告警。
 
-此專案可部署到既有 Linux server，也可透過 Terraform 建立 AWS EC2 作為監控目標。
-部署完成後，系統會自動安裝 Python monitoring agent 與 Node Exporter，由 Prometheus 收集主機與服務層級 metrics，並透過 Grafana dashboards 視覺化呈現；Alertmanager 則負責接收 Prometheus alerts。
+系統使用 **kube-prometheus-stack** 部署 Prometheus / Grafana / Alertmanager 到 k3d（本機）或 EKS（規劃中），同時透過：
 
-設計重點是降低人工部署與設定成本，讓主機監控系統可以透過 IaC 方式重複建置、快速擴充，並具備基本監控、告警與 troubleshooting 能力。
+- **ServiceMonitor** 抓取 k8s 內部 workload metrics（monitor-agent DaemonSet）
+- **additionalScrapeConfigs Secret** 動態管理外部 EC2 / Linux VM target
 
-支援兩種使用情境：
-- **Server Agent Mode**：部署到既有 Linux server 或 AWS EC2。
-- **Docker Target Mode**：在本機使用 Docker target 快速驗證監控部署流程。
+自行開發的 **Python monitor-agent** 同時支援兩種部署形式：在 VM 上以 systemd 執行，在 k8s 上以 DaemonSet 執行，輸出統一格式的 Prometheus metrics。
+
+> **設計目標：** 用同一套監控邏輯與 IaC 流程，同時覆蓋 k8s 與 VM 基礎設施。
+
+## 使用情境
+
+| Mode | 部署方式 | 用途 |
+|------|---------|------|
+| **Kubernetes** | Terraform + Helm → k3d / EKS | 主要 demo path |
+| **VM (existing Linux)** | Terraform + Ansible → systemd | 接手既有 server |
+| **VM (AWS EC2)** | Terraform + Ansible → systemd | 雲端 VM lab |
+| **Hybrid** | 上述任二同時運作，**同一個 Prometheus 監控所有 target** | 真實混合環境 |
 
 ## 架構
 
 ```mermaid
 flowchart LR
-  TF["Terraform\n主機清單 / 可選 AWS EC2"] --> INV["ansible/inventory.ini"]
-  INV --> ANS["Ansible"]
-
-  subgraph TARGETS["Linux target servers / VMs"]
-    AGENT["Python monitor-agent\nsystemd service\n:8000/metrics + JSON logs"]
-    NODE["Node Exporter\nsystemd service\n:9100/metrics"]
+  subgraph K8S["Kubernetes cluster (k3d / EKS)"]
+    HELM["Helm: kube-prometheus-stack"]
+    DS["monitor-agent DaemonSet"]
+    SM["ServiceMonitor / PrometheusRule"]
+    HELM --> PROM["Prometheus"]
+    HELM --> GRAF["Grafana"]
+    HELM --> AM["Alertmanager"]
+    SM --> PROM
+    DS --> SM
   end
 
-  ANS --> AGENT
-  ANS --> NODE
-
-  subgraph CONTROL["Control node"]
-    STACK["Docker monitoring stack\nconfigs + containers"]
-    PROM["Prometheus\n:9090"]
-    GRAF["Grafana\n:3000"]
-    AM["Alertmanager\n:9093"]
-
-    STACK --> PROM
-    STACK --> GRAF
-    STACK --> AM
+  subgraph VMS["External Linux VMs"]
+    AGENT["monitor-agent (systemd)"]
+    NODE["node-exporter (systemd)"]
   end
 
-  ANS --> STACK
-  PROM --> AGENT
-  PROM --> NODE
-  PROM --> AM
-  GRAF --> PROM
+  SECRET["Secret: external-targets.yaml<br/>(file_sd-style)"] --> PROM
+  PROM -.scrape.-> AGENT
+  PROM -.scrape.-> NODE
 ```
 
 ## 主要元件
 
-- **Terraform**：產生 Ansible inventory，並可選擇建立 AWS EC2、Security Group、SSH key pair。
-- **Ansible**：部署 agent、Node Exporter、systemd service、logrotate、Prometheus、Grafana、Alertmanager。
-- **Python monitor-agent**：收集 CPU / memory / zombie process，執行 DNS / TCP check，輸出 Prometheus metrics 與 JSON log。
-- **Node Exporter**：提供 Linux 主機層級 metrics，例如 CPU、memory、disk、network。
-- **Prometheus**：抓取 agent、Node Exporter、Alertmanager 等目標，並載入 alert rules。
-- **Grafana**：透過 provisioning 自動載入 datasource 與 dashboards。
-- **Alertmanager**：接收 Prometheus alerts，目前使用本機基本 receiver。
+| 元件 | 角色 |
+|------|------|
+| **Terraform** | `infra/vm` 建立 EC2 + Ansible inventory；`infra/k8s` 建立 k3d cluster + 安裝 Helm chart |
+| **Ansible** | VM mode 部署 monitor-agent / node-exporter / Prometheus stack（透過 docker-compose） |
+| **Helm** | k8s mode 安裝 kube-prometheus-stack（含 Prometheus Operator + Grafana + Alertmanager） |
+| **monitor-agent** | 自製 Python agent，採 CPU / memory / zombie process + DNS / TCP 檢查 |
+| **PrometheusRule** | 6 條 alert 涵蓋 instance down / CPU / memory / disk / load |
 
 ## Demo
 
@@ -62,130 +63,105 @@ flowchart LR
 ## 專案結構
 
 ```text
-infra/
-  server/terraform/      Server Agent Mode：既有 Linux server 或 AWS EC2
-  docker/terraform/      Docker Target Mode：本機 demo target
-ansible/
-  server-agent.yml       部署 agent 與 monitoring stack
-  roles/node_exporter/   安裝 Node Exporter 與 systemd service
-  templates/             Prometheus / Alertmanager 設定模板
-  files/grafana/         Grafana datasource 與 dashboards
-  files/prometheus/      Prometheus alert rules
 agent/
-  agent.py               Python monitoring agent
-  config.yml             預設 agent 檢查設定
-docs/
-  system-usage.zh-TW.md  詳細操作說明
-runbooks/                Linux incident runbooks
-scripts/                 驗證與 smoke test scripts
-systemd/
-  monitor-agent.service
+  agent.py              Python monitoring agent
+  config.yml            agent config (DNS / TCP targets)
+  Dockerfile            container image for k8s mode
+ansible/
+  vm-deploy.yml         deploy agent + Prometheus stack to VMs
+  roles/node_exporter/  Node Exporter systemd role
+  templates/            docker-compose, Prometheus, Alertmanager templates
+  files/grafana/        dashboards + provisioning
+  files/prometheus/     alert rules (VM mode)
+k8s/
+  helm/values.yaml      kube-prometheus-stack overrides
+  manifests/            DaemonSet, ServiceMonitor, PrometheusRule, external-targets Secret
+infra/
+  vm/terraform/         existing Linux server / AWS EC2
+  k8s/terraform/        k3d + Helm release
+  docker/terraform/     (frozen) local Docker target lab
+scripts/
+  k8s-up.sh             one-shot k3d + Helm bootstrap
+  k8s-verify.sh         smoke check k8s targets
+  smoke-server.sh       smoke check VM targets
+runbooks/               6 incident runbooks
 ```
-
-## 前置需求
-
-- Terraform >= 1.5
-- Ansible
-- Docker
-- 可 SSH 登入的 Linux server，或可用的 AWS credential
-- target server 需要 sudo 權限
-
-預設不會建立 AWS 資源；只有在 `enable_aws_resources = true` 並使用 AWS tfvars 時，Terraform 才會建立 EC2。
 
 ## 快速開始
 
-### 既有 Linux server
+### Kubernetes mode（推薦）
+
+需求：`docker`、`k3d`、`kubectl`、`helm`
 
 ```bash
-cp infra/server/terraform/terraform.tfvars.example infra/server/terraform/terraform.tfvars
+make build-agent-image
+make k8s-up
+make k8s-verify
+```
+
+- Grafana: <http://localhost:3000>（admin / admin）
+- Prometheus: <http://localhost:9090>
+- Alertmanager: <http://localhost:9093>
+
+加入外部 VM target：
+
+```bash
+cp k8s/manifests/external-targets-secret.example.yaml k8s/manifests/external-targets-secret.yaml
+# 編輯 targets 列表
+kubectl -n monitoring apply -f k8s/manifests/external-targets-secret.yaml
+```
+
+清除：
+
+```bash
+make k8s-down
+```
+
+### 改用 Terraform 部署 k8s
+
+```bash
+terraform -chdir=infra/k8s/terraform init
+terraform -chdir=infra/k8s/terraform apply
+# 同樣是 k3d + kube-prometheus-stack，但完全由 Terraform 管理
+```
+
+### VM mode（既有 Linux server）
+
+```bash
+cp infra/vm/terraform/terraform.tfvars.example infra/vm/terraform/terraform.tfvars
 # 編輯 server_hosts、ansible_user、ssh_private_key_file
 
-make server-apply
-make server-up ANSIBLE_FLAGS="--ask-become-pass"
+make vm-apply
+make vm-up ANSIBLE_FLAGS="--ask-become-pass"
 make verify-stack
 ```
 
-### AWS EC2
+### VM mode（AWS EC2）
 
 ```bash
-cp infra/server/terraform/terraform.tfvars.aws.example infra/server/terraform/terraform.tfvars.aws
+cp infra/vm/terraform/terraform.tfvars.aws.example infra/vm/terraform/terraform.tfvars.aws
 # 編輯 AMI、VPC、subnet、SSH key、allowed CIDR
 
-make server-aws-plan
-make server-aws-apply
-make server-aws-deploy ANSIBLE_FLAGS="--ask-become-pass"
+make vm-aws-apply
+make vm-aws-deploy ANSIBLE_FLAGS="--ask-become-pass"
 make verify-stack
+make vm-aws-destroy  # demo 結束清資源
 ```
 
-AWS demo 結束後記得清除資源：
-
-```bash
-make server-aws-destroy
-```
-
-### 本機 Docker demo
-
-```bash
-make docker-up ANSIBLE_FLAGS="--ask-become-pass"
-make docker-scale NODE_COUNT=3 ANSIBLE_FLAGS="--ask-become-pass"
-make docker-down ANSIBLE_FLAGS="--ask-become-pass"
-```
-
-## 服務入口
-
-部署完成後，control node 會提供：
+## Alert rules
 
 ```text
-Prometheus:    http://localhost:9090
-Grafana:       http://localhost:3000  admin / admin
-Alertmanager:  http://localhost:9093
+InstanceDown        target /metrics 連續 2 分鐘無回應
+HighCPUUsage        CPU > 85% for 5m
+HighMemoryUsage     memory > 90% for 5m
+DiskAlmostFull      disk > 85% for 5m
+HighLoadAverage     load5 > CPU 核心數 for 5m
 ```
 
-target server 上會有：
-
-```text
-monitor-agent: http://<target-ip>:8000/metrics
-Node Exporter: http://<target-ip>:9100/metrics
-```
-
-## 驗證
-
-```bash
-make verify-stack
-curl http://localhost:9090/-/healthy
-curl http://localhost:9093/-/healthy
-curl http://<target-ip>:8000/metrics
-curl http://<target-ip>:9100/metrics
-```
-
-常用 service 檢查：
-
-```bash
-systemctl status monitor-agent
-systemctl status node_exporter
-journalctl -u monitor-agent -f
-```
-
-## Alert Rules
-
-目前包含：
-
-- `InstanceDown`
-- `NodeExporterDown`
-- `HighCPUUsage`
-- `HighMemoryUsage`
-- `DiskAlmostFull`
-- `HighLoadAverage`
-
-Alert rules 位於：
-
-```text
-ansible/files/prometheus/rules/linux-alerts.yml
-```
+- VM mode：`ansible/files/prometheus/rules/linux-alerts.yml`
+- k8s mode：`k8s/manifests/prometheusrule.yaml`（PrometheusRule CRD）
 
 ## 文件
 
-更完整的部署流程、AWS 操作、Docker demo、alert 測試與 troubleshooting 請看：
-
-- [docs/system-usage.zh-TW.md](docs/system-usage.zh-TW.md)
-- [runbooks/](runbooks/)
+- [docs/system-usage.zh-TW.md](docs/system-usage.zh-TW.md) — 完整部署、debug、alert 測試流程
+- [runbooks/](runbooks/) — 6 篇 incident runbook
