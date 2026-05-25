@@ -1,7 +1,7 @@
 # Copy this file to terraform.tfvars.aws before running AWS make targets:
 #
-#   cp infra/server/terraform/terraform.tfvars.aws.example infra/server/terraform/terraform.tfvars.aws
-#   make server-aws-plan
+#   cp infra/vm/terraform/terraform.tfvars.aws.example infra/vm/terraform/terraform.tfvars.aws
+#   make vm-aws-plan
 #
 # Keep terraform.tfvars.aws local. It may contain your current public IP,
 # preferred VPC/subnet, and SSH key paths.

@@ -1,41 +1,48 @@
 SHELL := /usr/bin/env bash
 
+VM_TF_DIR     := infra/vm/terraform
 DOCKER_TF_DIR := infra/docker/terraform
-SERVER_TF_DIR := infra/server/terraform
-NODE_COUNT ?= 3
+K8S_TF_DIR    := infra/k8s/terraform
+K8S_DIR       := k8s
 ANSIBLE_FLAGS ?=
-AWS_TFVARS ?= terraform.tfvars.aws
+AWS_TFVARS    ?= terraform.tfvars.aws
+AGENT_IMAGE   ?= monitor-agent:dev
+K3D_CLUSTER   ?= iac-monitoring
 
-.PHONY: help validate prepare-validation-files require-aws-tfvars docker-init docker-up docker-ansible docker-scale docker-edit docker-down server-init server-plan server-apply server-agent server-stack server-up server-aws-plan server-aws-apply server-aws-destroy server-aws-deploy smoke-server smoke-aws verify-stack
+.PHONY: help validate prepare-validation-files require-aws-tfvars \
+        vm-init vm-plan vm-apply vm-agent vm-stack vm-up \
+        vm-aws-plan vm-aws-apply vm-aws-deploy vm-aws-destroy \
+        k8s-up k8s-down k8s-verify build-agent-image k3d-load-agent \
+        smoke-vm verify-stack
 
 help:
-	@echo "Targets:"
-	@echo "  make validate                  Run Terraform, Ansible, JSON, and Python checks"
-	@echo "  make docker-up                 Apply Docker target mode Terraform and update central stack"
-	@echo "  make docker-scale NODE_COUNT=3 Scale Docker app nodes and update central stack"
-	@echo "  make docker-edit               Change app response text and update central stack"
-	@echo '  make docker-down ANSIBLE_FLAGS="--ask-become-pass" Destroy Docker target mode resources and update central stack'
-	@echo "  make server-plan               Plan Server Agent Mode"
-	@echo "  make server-apply              Apply Server Agent Mode inventory"
-	@echo "  make server-agent              Deploy Python agent to remote servers"
-	@echo "  make server-stack              Deploy Prometheus/Grafana on this control node"
-	@echo "  make server-up                 Deploy remote agents and local stack"
-	@echo "  make server-aws-plan           Plan AWS EC2 Server Agent Mode with infra/server/terraform/$(AWS_TFVARS)"
-	@echo "  make server-aws-apply          Create AWS EC2 resources and generate Ansible inventory"
-	@echo "  make server-aws-deploy         Deploy AWS-safe agent config and local monitoring stack"
-	@echo "  make smoke-server              Run end-to-end health checks"
-	@echo "  make verify-stack              Check Prometheus, Grafana, Alertmanager, and target metrics"
-	@echo "  make server-aws-destroy        Destroy AWS EC2 resources managed by Terraform"
+	@echo "VM (hybrid target) targets:"
+	@echo "  make vm-plan                   Plan VM Terraform (existing Linux server inventory)"
+	@echo "  make vm-apply                  Generate Ansible inventory from terraform.tfvars"
+	@echo "  make vm-up                     Deploy agent + monitoring stack to inventory"
+	@echo "  make vm-aws-apply              Create AWS EC2 + security group + inventory"
+	@echo "  make vm-aws-deploy             Deploy agent + monitoring stack to AWS hosts"
+	@echo "  make vm-aws-destroy            Destroy AWS resources"
+	@echo
+	@echo "Kubernetes targets:"
+	@echo "  make build-agent-image         Build monitor-agent Docker image ($(AGENT_IMAGE))"
+	@echo "  make k8s-up                    Create k3d cluster, install kube-prometheus-stack + manifests"
+	@echo "  make k8s-down                  Destroy k3d cluster"
+	@echo "  make k8s-verify                Smoke-check k8s monitoring stack"
+	@echo
+	@echo "Misc:"
+	@echo "  make validate                  Run Terraform / Ansible / JSON / Python static checks"
+	@echo "  make verify-stack              Check VM Prometheus / Grafana / Alertmanager endpoints"
 
 validate: prepare-validation-files
+	terraform -chdir=$(VM_TF_DIR) fmt -check
+	terraform -chdir=$(VM_TF_DIR) init -backend=false
+	terraform -chdir=$(VM_TF_DIR) validate
 	terraform -chdir=$(DOCKER_TF_DIR) fmt -check
 	terraform -chdir=$(DOCKER_TF_DIR) init -backend=false
 	terraform -chdir=$(DOCKER_TF_DIR) validate
-	terraform -chdir=$(SERVER_TF_DIR) fmt -check
-	terraform -chdir=$(SERVER_TF_DIR) init -backend=false
-	terraform -chdir=$(SERVER_TF_DIR) validate
-	ansible-playbook --syntax-check -i ansible/inventory.ini ansible/server-agent.yml
-	jq empty ansible/files/docker-target/grafana/dashboards/*.json ansible/files/grafana/dashboards/*.json
+	ansible-playbook --syntax-check -i ansible/inventory.ini ansible/vm-deploy.yml
+	jq empty ansible/files/grafana/dashboards/*.json
 	python3 -m py_compile agent/agent.py
 	bash -n scripts/smoke-server.sh
 	bash -n scripts/verify-monitoring-stack.sh
@@ -45,74 +52,65 @@ prepare-validation-files:
 	test -f ansible/inventory.ini || printf '[monitoring_agents]\nmonitor-node-02 ansible_host=127.0.0.1 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa\n\n[monitoring_stack]\nlocalhost ansible_connection=local\n' > ansible/inventory.ini
 
 require-aws-tfvars:
-	@test -f "$(SERVER_TF_DIR)/$(AWS_TFVARS)" || ( \
-		echo "Missing $(SERVER_TF_DIR)/$(AWS_TFVARS)."; \
+	@test -f "$(VM_TF_DIR)/$(AWS_TFVARS)" || ( \
+		echo "Missing $(VM_TF_DIR)/$(AWS_TFVARS)."; \
 		echo "Create it with:"; \
-		echo "  cp $(SERVER_TF_DIR)/terraform.tfvars.aws.example $(SERVER_TF_DIR)/$(AWS_TFVARS)"; \
+		echo "  cp $(VM_TF_DIR)/terraform.tfvars.aws.example $(VM_TF_DIR)/$(AWS_TFVARS)"; \
 		echo "Then edit AMI/VPC/subnet/CIDR values before applying."; \
 		exit 1; \
 	)
 
-docker-init:
-	terraform -chdir=$(DOCKER_TF_DIR) init
+# ---------------- VM mode ----------------
 
-docker-up: docker-init
-	terraform -chdir=$(DOCKER_TF_DIR) apply
-	$(MAKE) server-stack
+vm-init:
+	terraform -chdir=$(VM_TF_DIR) init
 
-docker-ansible:
-	$(MAKE) server-stack
+vm-plan: vm-init
+	terraform -chdir=$(VM_TF_DIR) plan
 
-docker-scale: docker-init
-	terraform -chdir=$(DOCKER_TF_DIR) apply -var="node_count=$(NODE_COUNT)"
-	$(MAKE) server-stack
+vm-apply: vm-init
+	terraform -chdir=$(VM_TF_DIR) apply
 
-docker-edit: docker-init
-	terraform -chdir=$(DOCKER_TF_DIR) apply -var="app_message_prefix=updated by terraform"
-	$(MAKE) server-stack
+vm-agent:
+	ansible-playbook -i ansible/inventory.ini ansible/vm-deploy.yml --limit monitoring_agents $(ANSIBLE_FLAGS)
 
-docker-down:
-	terraform -chdir=$(DOCKER_TF_DIR) destroy
-	rm -f ansible/group_vars/monitoring_stack/docker_targets.yml
-	docker rm -f blackbox iac-lab-blackbox iac-lab-prometheus iac-lab-grafana >/dev/null 2>&1 || true
-	$(MAKE) server-stack
+vm-stack:
+	ansible-playbook -i ansible/inventory.ini ansible/vm-deploy.yml --limit monitoring_stack $(ANSIBLE_FLAGS)
 
-server-init:
-	terraform -chdir=$(SERVER_TF_DIR) init
+vm-up: vm-agent vm-stack
 
-server-plan: server-init
-	terraform -chdir=$(SERVER_TF_DIR) plan
+vm-aws-plan: require-aws-tfvars vm-init
+	terraform -chdir=$(VM_TF_DIR) plan -var-file=$(AWS_TFVARS)
 
-server-apply: server-init
-	terraform -chdir=$(SERVER_TF_DIR) apply
+vm-aws-apply: require-aws-tfvars vm-init
+	terraform -chdir=$(VM_TF_DIR) apply -var-file=$(AWS_TFVARS)
 
-server-agent:
-	ansible-playbook -i ansible/inventory.ini ansible/server-agent.yml --limit monitoring_agents $(ANSIBLE_FLAGS)
+vm-aws-destroy: require-aws-tfvars vm-init
+	terraform -chdir=$(VM_TF_DIR) destroy -var-file=$(AWS_TFVARS)
 
-server-stack:
-	ansible-playbook -i ansible/inventory.ini ansible/server-agent.yml --limit monitoring_stack $(ANSIBLE_FLAGS)
+vm-aws-deploy: vm-agent vm-stack
 
-server-up:
-	$(MAKE) server-agent
-	$(MAKE) server-stack
+# ---------------- k8s mode ----------------
 
-server-aws-plan: require-aws-tfvars server-init
-	terraform -chdir=$(SERVER_TF_DIR) plan -var-file=$(AWS_TFVARS)
+build-agent-image:
+	docker build -t $(AGENT_IMAGE) -f agent/Dockerfile .
 
-server-aws-apply: require-aws-tfvars server-init
-	terraform -chdir=$(SERVER_TF_DIR) apply -var-file=$(AWS_TFVARS)
+k3d-load-agent: build-agent-image
+	k3d image import $(AGENT_IMAGE) -c $(K3D_CLUSTER)
 
-server-aws-destroy: require-aws-tfvars server-init
-	terraform -chdir=$(SERVER_TF_DIR) destroy -var-file=$(AWS_TFVARS)
+k8s-up:
+	bash scripts/k8s-up.sh $(K3D_CLUSTER) $(AGENT_IMAGE)
 
-server-aws-deploy:
-	$(MAKE) server-agent
-	$(MAKE) server-stack
+k8s-down:
+	k3d cluster delete $(K3D_CLUSTER)
 
-smoke-server:
+k8s-verify:
+	bash scripts/k8s-verify.sh
+
+# ---------------- misc ----------------
+
+smoke-vm:
 	bash scripts/smoke-server.sh
 
 verify-stack:
 	bash scripts/verify-monitoring-stack.sh
-
-smoke-aws: smoke-server

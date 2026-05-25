@@ -180,7 +180,7 @@
 
     - name: Deploy Prometheus scrape config
       ansible.builtin.template:
-        src: templates/server-prometheus.yml.j2
+        src: templates/vm-prometheus.yml.j2
         dest: "{{ monitoring_stack_dir }}/prometheus.yml"
         owner: root
         group: root
