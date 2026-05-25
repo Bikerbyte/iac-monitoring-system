@@ -41,11 +41,16 @@ validate: prepare-validation-files
 	terraform -chdir=$(DOCKER_TF_DIR) fmt -check
 	terraform -chdir=$(DOCKER_TF_DIR) init -backend=false
 	terraform -chdir=$(DOCKER_TF_DIR) validate
+	terraform -chdir=$(K8S_TF_DIR) fmt -check
+	terraform -chdir=$(K8S_TF_DIR) init -backend=false
+	terraform -chdir=$(K8S_TF_DIR) validate
 	ansible-playbook --syntax-check -i ansible/inventory.ini ansible/vm-deploy.yml
 	jq empty ansible/files/grafana/dashboards/*.json
 	python3 -m py_compile agent/agent.py
 	bash -n scripts/smoke-server.sh
 	bash -n scripts/verify-monitoring-stack.sh
+	bash -n scripts/k8s-up.sh
+	bash -n scripts/k8s-verify.sh
 
 prepare-validation-files:
 	mkdir -p ansible/group_vars/monitoring_stack
