@@ -79,7 +79,6 @@ k8s/
 infra/
   vm/terraform/         existing Linux server / AWS EC2
   k8s/terraform/        k3d + Helm release
-  docker/terraform/     (frozen) local Docker target lab
 scripts/
   k8s-up.sh             one-shot k3d + Helm bootstrap
   k8s-verify.sh         smoke check k8s targets
