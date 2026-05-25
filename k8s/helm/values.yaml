@@ -1,0 +1,39 @@
+# kube-prometheus-stack values for the IaC monitoring system.
+# Overrides target hybrid scraping: k8s workloads via ServiceMonitor,
+# external VMs via additionalScrapeConfigs (file_sd / static).
+
+grafana:
+  adminUser: admin
+  adminPassword: admin
+  defaultDashboardsTimezone: browser
+
+  # Mount the same dashboards used in VM mode so the Grafana UX is identical.
+  dashboardsConfigMaps:
+    default: iac-grafana-dashboards
+
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    # Pick up PodMonitor / ServiceMonitor objects in any namespace.
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+    # External VM targets are managed via this Secret (file_sd format),
+    # so adding/removing a VM doesn't require touching Prometheus config.
+    additionalScrapeConfigsSecret:
+      enabled: true
+      name: iac-external-targets
+      key: external-targets.yaml
+
+alertmanager:
+  alertmanagerSpec:
+    retention: 120h
+
+# DaemonSet that ships with kube-prometheus-stack already covers node metrics.
+# We disable kubelet eviction noise that we don't action on.
+defaultRules:
+  rules:
+    kubeProxy: false
+    kubeSchedulerAlerting: false
+    kubeControllerManager: false
