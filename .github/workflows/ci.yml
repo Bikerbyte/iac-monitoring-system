@@ -29,5 +29,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install ansible-core==2.17.7
 
+      - name: Install Ansible collections
+        run: ansible-galaxy collection install -r ansible/requirements.yml
+
       - name: Validate project
         run: make validate

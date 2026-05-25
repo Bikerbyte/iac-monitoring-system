@@ -134,29 +134,16 @@
     monitoring_stack_dir: /opt/iac-monitoring-stack
     prometheus_image: prom/prometheus:v2.54.1
     grafana_image: grafana/grafana:11.2.0
-    blackbox_image: prom/blackbox-exporter:v0.25.0
     alertmanager_image: prom/alertmanager:v0.27.0
     grafana_admin_user: admin
     grafana_admin_password: admin
 
   tasks:
-    - name: Check Docker CLI on control node
-      ansible.builtin.shell: command -v docker
-      register: docker_cli
-      changed_when: false
-      failed_when: false
-      become: false
-
     - name: Require Docker on control node
-      ansible.builtin.fail:
-        msg: "Docker is required on the control node before deploying the local Prometheus/Grafana stack."
-      when: docker_cli.rc != 0
-
-    - name: Enable and start Docker on control node
-      ansible.builtin.service:
-        name: docker
-        enabled: true
-        state: started
+      ansible.builtin.command: docker version --format '{% raw %}{{.Server.Version}}{% endraw %}'
+      register: docker_version
+      changed_when: false
+      become: false
 
     - name: Create monitoring stack directories
       ansible.builtin.file:
@@ -168,8 +155,6 @@
       loop:
         - "{{ monitoring_stack_dir }}"
         - "{{ monitoring_stack_dir }}/rules"
-        - "{{ monitoring_stack_dir }}/grafana"
-        - "{{ monitoring_stack_dir }}/grafana/provisioning"
         - "{{ monitoring_stack_dir }}/grafana/provisioning/datasources"
         - "{{ monitoring_stack_dir }}/grafana/provisioning/dashboards"
         - "{{ monitoring_stack_dir }}/grafana/dashboards"
@@ -181,7 +166,7 @@
         owner: root
         group: root
         mode: "0644"
-      notify: Restart Alertmanager
+      notify: Recreate monitoring stack
 
     - name: Deploy Prometheus alert rules
       ansible.builtin.copy:
@@ -191,7 +176,7 @@
         group: root
         mode: "0644"
       loop: "{{ query('ansible.builtin.fileglob', playbook_dir + '/files/prometheus/rules/*.yml') }}"
-      notify: Restart Prometheus
+      notify: Recreate monitoring stack
 
     - name: Deploy Prometheus scrape config
       ansible.builtin.template:
@@ -200,7 +185,7 @@
         owner: root
         group: root
         mode: "0644"
-      notify: Restart Prometheus
+      notify: Recreate monitoring stack
 
     - name: Deploy Grafana Prometheus datasource
       ansible.builtin.copy:
@@ -209,7 +194,7 @@
         owner: root
         group: root
         mode: "0644"
-      notify: Restart Grafana
+      notify: Recreate monitoring stack
 
     - name: Deploy Grafana dashboard provider
       ansible.builtin.copy:
@@ -218,9 +203,9 @@
         owner: root
         group: root
         mode: "0644"
-      notify: Restart Grafana
+      notify: Recreate monitoring stack
 
-    - name: Deploy Grafana system dashboards
+    - name: Deploy Grafana dashboards
       ansible.builtin.copy:
         src: "{{ item }}"
         dest: "{{ monitoring_stack_dir }}/grafana/dashboards/{{ item | basename }}"
@@ -228,175 +213,25 @@
         group: root
         mode: "0644"
       loop: "{{ query('ansible.builtin.fileglob', playbook_dir + '/files/grafana/dashboards/*.json') }}"
-      notify: Restart Grafana
+      notify: Recreate monitoring stack
 
-    - name: Deploy Docker target Grafana dashboards
-      ansible.builtin.copy:
-        src: "{{ item }}"
-        dest: "{{ monitoring_stack_dir }}/grafana/dashboards/{{ item | basename }}"
+    - name: Deploy docker-compose.yml for monitoring stack
+      ansible.builtin.template:
+        src: templates/docker-compose.yml.j2
+        dest: "{{ monitoring_stack_dir }}/docker-compose.yml"
         owner: root
         group: root
         mode: "0644"
-      loop: "{{ query('ansible.builtin.fileglob', playbook_dir + '/files/docker-target/grafana/dashboards/*.json') }}"
-      notify: Restart Grafana
+      notify: Recreate monitoring stack
 
-    - name: Ensure monitoring Docker network exists
-      ansible.builtin.shell: |
-        docker network inspect iac-monitoring >/dev/null 2>&1 || docker network create iac-monitoring
-      changed_when: false
-
-    - name: Ensure Docker target network exists when Docker targets are configured
-      ansible.builtin.shell: |
-        docker network inspect "{{ iac_docker_target_network }}" >/dev/null 2>&1 || docker network create "{{ iac_docker_target_network }}"
-      changed_when: false
-      when: (iac_docker_target_app_targets | default([])) | length > 0
-
-    - name: Check blackbox exporter container state
-      ansible.builtin.shell: |
-        docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' blackbox 2>/dev/null || true
-      register: blackbox_state
-      changed_when: false
-      when: (iac_docker_target_app_targets | default([])) | length > 0
-
-    - name: Start blackbox exporter container for Docker targets
-      ansible.builtin.shell: |
-        docker rm -f blackbox >/dev/null 2>&1 || true
-        docker run -d \
-          --name blackbox \
-          --restart unless-stopped \
-          --network iac-monitoring \
-          "{{ blackbox_image }}"
-        docker network connect "{{ iac_docker_target_network }}" blackbox >/dev/null 2>&1 || true
-      when:
-        - (iac_docker_target_app_targets | default([])) | length > 0
-        - blackbox_state is defined
-        - blackbox_state.stdout != "true"
-      changed_when: true
-
-    - name: Ensure blackbox exporter is attached to Docker target network
-      ansible.builtin.shell: |
-        docker network connect "{{ iac_docker_target_network }}" blackbox >/dev/null 2>&1 || true
-      changed_when: false
-      when:
-        - (iac_docker_target_app_targets | default([])) | length > 0
-        - blackbox_state is defined
-        - blackbox_state.stdout == "true"
-
-    - name: Check Alertmanager container state
-      ansible.builtin.shell: |
-        set -o pipefail
-        docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' alertmanager 2>/dev/null || true
-      args:
-        executable: /bin/bash
-      register: alertmanager_state
-      changed_when: false
-
-    - name: Start Alertmanager container
-      ansible.builtin.shell: |
-        docker rm -f alertmanager >/dev/null 2>&1 || true
-        docker run -d \
-          --name alertmanager \
-          --restart unless-stopped \
-          --network iac-monitoring \
-          -p 9093:9093 \
-          -v "{{ monitoring_stack_dir }}/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro" \
-          "{{ alertmanager_image }}" \
-          --config.file=/etc/alertmanager/alertmanager.yml
-      when: alertmanager_state.stdout != "true"
-      changed_when: true
-
-    - name: Check Prometheus container state
-      ansible.builtin.shell: |
-        set -o pipefail
-        docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' prometheus 2>/dev/null || true
-      args:
-        executable: /bin/bash
-      register: prometheus_state
-      changed_when: false
-
-    - name: Start Prometheus container
-      ansible.builtin.shell: |
-        docker rm -f prometheus >/dev/null 2>&1 || true
-        docker run -d \
-          --name prometheus \
-          --restart unless-stopped \
-          --network iac-monitoring \
-          -p 9090:9090 \
-          -v "{{ monitoring_stack_dir }}/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
-          -v "{{ monitoring_stack_dir }}/rules:/etc/prometheus/rules:ro" \
-          "{{ prometheus_image }}" \
-          --config.file=/etc/prometheus/prometheus.yml \
-          --storage.tsdb.retention.time=7d
-      when: prometheus_state.stdout != "true"
-      changed_when: true
-
-    - name: Check Grafana container state
-      ansible.builtin.shell: |
-        set -o pipefail
-        docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' grafana 2>/dev/null || true
-      args:
-        executable: /bin/bash
-      register: grafana_state
-      changed_when: false
-
-    - name: Start Grafana container
-      ansible.builtin.shell: |
-        docker rm -f grafana >/dev/null 2>&1 || true
-        docker run -d \
-          --name grafana \
-          --restart unless-stopped \
-          --network iac-monitoring \
-          -p 3000:3000 \
-          -e GF_SECURITY_ADMIN_USER="{{ grafana_admin_user }}" \
-          -e GF_SECURITY_ADMIN_PASSWORD="{{ grafana_admin_password }}" \
-          -e GF_USERS_ALLOW_SIGN_UP=false \
-          -v "{{ monitoring_stack_dir }}/grafana/provisioning:/etc/grafana/provisioning:ro" \
-          -v "{{ monitoring_stack_dir }}/grafana/dashboards:/var/lib/grafana/dashboards:ro" \
-          "{{ grafana_image }}"
-      when: grafana_state.stdout != "true"
-      changed_when: true
+    - name: Start monitoring stack
+      community.docker.docker_compose_v2:
+        project_src: "{{ monitoring_stack_dir }}"
+        state: present
 
   handlers:
-    - name: Restart Prometheus
-      ansible.builtin.shell: |
-        docker rm -f prometheus >/dev/null 2>&1 || true
-        docker run -d \
-          --name prometheus \
-          --restart unless-stopped \
-          --network iac-monitoring \
-          -p 9090:9090 \
-          -v "{{ monitoring_stack_dir }}/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
-          -v "{{ monitoring_stack_dir }}/rules:/etc/prometheus/rules:ro" \
-          "{{ prometheus_image }}" \
-          --config.file=/etc/prometheus/prometheus.yml \
-          --storage.tsdb.retention.time=7d
-      changed_when: true
-
-    - name: Restart Alertmanager
-      ansible.builtin.shell: |
-        docker rm -f alertmanager >/dev/null 2>&1 || true
-        docker run -d \
-          --name alertmanager \
-          --restart unless-stopped \
-          --network iac-monitoring \
-          -p 9093:9093 \
-          -v "{{ monitoring_stack_dir }}/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro" \
-          "{{ alertmanager_image }}" \
-          --config.file=/etc/alertmanager/alertmanager.yml
-      changed_when: true
-
-    - name: Restart Grafana
-      ansible.builtin.shell: |
-        docker rm -f grafana >/dev/null 2>&1 || true
-        docker run -d \
-          --name grafana \
-          --restart unless-stopped \
-          --network iac-monitoring \
-          -p 3000:3000 \
-          -e GF_SECURITY_ADMIN_USER="{{ grafana_admin_user }}" \
-          -e GF_SECURITY_ADMIN_PASSWORD="{{ grafana_admin_password }}" \
-          -e GF_USERS_ALLOW_SIGN_UP=false \
-          -v "{{ monitoring_stack_dir }}/grafana/provisioning:/etc/grafana/provisioning:ro" \
-          -v "{{ monitoring_stack_dir }}/grafana/dashboards:/var/lib/grafana/dashboards:ro" \
-          "{{ grafana_image }}"
-      changed_when: true
+    - name: Recreate monitoring stack
+      community.docker.docker_compose_v2:
+        project_src: "{{ monitoring_stack_dir }}"
+        state: present
+        recreate: always
