@@ -1,4 +1,4 @@
-# IaC Monitoring System 操作說明
+﻿# IaC Monitoring System 操作說明
 
 這份文件是操作 runbook，不是完整架構介紹。照做時先選一條路徑，不要混跑。
 
@@ -44,12 +44,12 @@ control node 上會跑：
 
 ## A. AWS EC2 Server Agent Mode
 
-這條路會建立 AWS EC2。不要同時跑 `make server-apply`，那是給既有 Linux server / mock inventory 用的。
+這條路會建立 AWS EC2。不要同時跑 `make vm-apply`，那是給既有 Linux server / mock inventory 用的。
 
 ### A1. 準備 AWS tfvars
 
 ```bash
-cp infra/server/terraform/terraform.tfvars.aws.example infra/server/terraform/terraform.tfvars.aws
+cp infra/vm/terraform/terraform.tfvars.aws.example infra/vm/terraform/terraform.tfvars.aws
 ```
 
 確認目前 public IP：
@@ -61,7 +61,7 @@ curl -fsS https://checkip.amazonaws.com
 編輯：
 
 ```text
-infra/server/terraform/terraform.tfvars.aws
+infra/vm/terraform/terraform.tfvars.aws
 ```
 
 至少確認這些欄位：
@@ -101,19 +101,19 @@ allowed_monitoring_cidr_blocks = ["你的-public-ip/32"]
 先看 plan：
 
 ```bash
-make server-aws-plan
+make vm-aws-plan
 ```
 
 確認只會建立預期資源後再 apply：
 
 ```bash
-make server-aws-apply
+make vm-aws-apply
 ```
 
 確認 Terraform output：
 
 ```bash
-terraform -chdir=infra/server/terraform output
+terraform -chdir=infra/vm/terraform output
 ```
 
 你應該看到：
@@ -140,7 +140,7 @@ aws ec2 describe-instances \
 EC2 剛建立完時 SSH 可能還沒 ready，等 30 到 60 秒再跑：
 
 ```bash
-make server-aws-deploy ANSIBLE_FLAGS="--ask-become-pass"
+make vm-aws-deploy ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 這個 target 會做兩件事：
@@ -193,13 +193,13 @@ Prometheus targets 應該看到：
 ### B1. 準備 local tfvars
 
 ```bash
-cp infra/server/terraform/terraform.tfvars.example infra/server/terraform/terraform.tfvars
+cp infra/vm/terraform/terraform.tfvars.example infra/vm/terraform/terraform.tfvars
 ```
 
 編輯：
 
 ```text
-infra/server/terraform/terraform.tfvars
+infra/vm/terraform/terraform.tfvars
 ```
 
 範例：
@@ -229,15 +229,15 @@ server_hosts = [
 ### B2. 產生 inventory
 
 ```bash
-make server-plan
-make server-apply
+make vm-plan
+make vm-apply
 ```
 
 確認：
 
 ```bash
 cat ansible/inventory.ini
-terraform -chdir=infra/server/terraform output
+terraform -chdir=infra/vm/terraform output
 ```
 
 `system_mode` 應該是：
@@ -253,15 +253,15 @@ mock-inventory
 如果用密碼登入：
 
 ```bash
-make server-agent ANSIBLE_FLAGS="--ask-pass --ask-become-pass"
-make server-stack ANSIBLE_FLAGS="--ask-become-pass"
+make vm-agent ANSIBLE_FLAGS="--ask-pass --ask-become-pass"
+make vm-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 如果用 SSH key：
 
 ```bash
-make server-agent ANSIBLE_FLAGS="--ask-become-pass"
-make server-stack ANSIBLE_FLAGS="--ask-become-pass"
+make vm-agent ANSIBLE_FLAGS="--ask-become-pass"
+make vm-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 ### B4. 驗證
@@ -310,7 +310,7 @@ docker stop iac-lab-app-node-01
 
 ```bash
 terraform -chdir=infra/docker/terraform apply
-make server-stack ANSIBLE_FLAGS="--ask-become-pass"
+make vm-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 清掉 Docker demo：
@@ -324,8 +324,8 @@ make docker-down ANSIBLE_FLAGS="--ask-become-pass"
 ### 看 Terraform 目前管理什麼
 
 ```bash
-terraform -chdir=infra/server/terraform state list
-terraform -chdir=infra/server/terraform output
+terraform -chdir=infra/vm/terraform state list
+terraform -chdir=infra/vm/terraform output
 ```
 
 如果有 AWS EC2，state 會看到：
@@ -478,7 +478,7 @@ runbooks/
 設定來源以 Git + Ansible template 為主。正常還原方式是重跑：
 
 ```bash
-make server-stack ANSIBLE_FLAGS="--ask-become-pass"
+make vm-stack ANSIBLE_FLAGS="--ask-become-pass"
 make verify-stack
 ```
 
@@ -517,21 +517,21 @@ env | sort | grep '^AWS_' || true
 AWS flow 要跑：
 
 ```bash
-make server-aws-plan
-make server-aws-apply
+make vm-aws-plan
+make vm-aws-apply
 ```
 
 Existing server flow 才跑：
 
 ```bash
-make server-plan
-make server-apply
+make vm-plan
+make vm-apply
 ```
 
 如果 `system_mode` 不是預期值：
 
 ```bash
-terraform -chdir=infra/server/terraform output system_mode
+terraform -chdir=infra/vm/terraform output system_mode
 ```
 
 ### Ansible 連不上 target
@@ -554,13 +554,13 @@ ansible -i ansible/inventory.ini monitoring_agents -m ping
 ```bash
 curl http://localhost:9090/api/v1/targets
 cat ansible/inventory.ini
-terraform -chdir=infra/server/terraform output
+terraform -chdir=infra/vm/terraform output
 ```
 
 inventory 改了就重跑 control node stack：
 
 ```bash
-make server-stack ANSIBLE_FLAGS="--ask-become-pass"
+make vm-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 ### Node Exporter 沒資料
@@ -591,7 +591,7 @@ curl http://localhost:8000/metrics
 ```bash
 docker logs grafana --tail 100
 ls -l /opt/iac-monitoring-stack/grafana/dashboards
-make server-stack ANSIBLE_FLAGS="--ask-become-pass"
+make vm-stack ANSIBLE_FLAGS="--ask-become-pass"
 ```
 
 ## 清除 AWS 資源
@@ -599,11 +599,11 @@ make server-stack ANSIBLE_FLAGS="--ask-become-pass"
 AWS flow 練完要刪掉，避免持續計費：
 
 ```bash
-make server-aws-destroy
+make vm-aws-destroy
 ```
 
 確認 state 清乾淨：
 
 ```bash
-terraform -chdir=infra/server/terraform state list
+terraform -chdir=infra/vm/terraform state list
 ```
