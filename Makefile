@@ -6,7 +6,7 @@ NODE_COUNT ?= 3
 ANSIBLE_FLAGS ?=
 AWS_TFVARS ?= terraform.tfvars.aws
 
-.PHONY: help validate prepare-validation-files require-aws-tfvars docker-init docker-up docker-ansible docker-scale docker-edit docker-down server-init server-plan server-apply server-agent server-agent-aws server-stack server-up server-aws-plan server-aws-apply server-aws-destroy server-aws-deploy smoke-server smoke-aws verify-stack
+.PHONY: help validate prepare-validation-files require-aws-tfvars docker-init docker-up docker-ansible docker-scale docker-edit docker-down server-init server-plan server-apply server-agent server-stack server-up server-aws-plan server-aws-apply server-aws-destroy server-aws-deploy smoke-server smoke-aws verify-stack
 
 help:
 	@echo "Targets:"
@@ -18,7 +18,6 @@ help:
 	@echo "  make server-plan               Plan Server Agent Mode"
 	@echo "  make server-apply              Apply Server Agent Mode inventory"
 	@echo "  make server-agent              Deploy Python agent to remote servers"
-	@echo "  make server-agent-aws          Deploy Python agent with AWS-safe network checks"
 	@echo "  make server-stack              Deploy Prometheus/Grafana on this control node"
 	@echo "  make server-up                 Deploy remote agents and local stack"
 	@echo "  make server-aws-plan           Plan AWS EC2 Server Agent Mode with infra/server/terraform/$(AWS_TFVARS)"
@@ -90,9 +89,6 @@ server-apply: server-init
 server-agent:
 	ansible-playbook -i ansible/inventory.ini ansible/server-agent.yml --limit monitoring_agents $(ANSIBLE_FLAGS)
 
-server-agent-aws:
-	ansible-playbook -i ansible/inventory.ini ansible/server-agent.yml --limit monitoring_agents -e agent_config_src=../agent/config.aws.yml $(ANSIBLE_FLAGS)
-
 server-stack:
 	ansible-playbook -i ansible/inventory.ini ansible/server-agent.yml --limit monitoring_stack $(ANSIBLE_FLAGS)
 
@@ -110,7 +106,7 @@ server-aws-destroy: require-aws-tfvars server-init
 	terraform -chdir=$(SERVER_TF_DIR) destroy -var-file=$(AWS_TFVARS)
 
 server-aws-deploy:
-	$(MAKE) server-agent-aws
+	$(MAKE) server-agent
 	$(MAKE) server-stack
 
 smoke-server:

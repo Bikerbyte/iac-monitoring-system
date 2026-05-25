@@ -13,12 +13,12 @@ network:
       host: www.github.com
 
   tcp_targets:
-    - name: internal-gateway
-      host: 192.168.0.1
+    - name: external-google
+      host: google.com
       port: 443
       timeout_seconds: 3
 
-    - name: external-google
-      host: google.com
+    - name: cloudflare-dns
+      host: 1.1.1.1
       port: 443
       timeout_seconds: 3
