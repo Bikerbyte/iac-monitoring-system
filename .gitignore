@@ -32,7 +32,6 @@ plan.out
 # Ansible local output
 ansible/*.retry
 ansible/inventory.ini
-ansible/group_vars/monitoring_stack/docker_targets.yml
 
 # Local teaching notes requested outside version control
 learning-notes/

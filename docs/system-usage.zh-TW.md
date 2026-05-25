@@ -284,39 +284,35 @@ curl http://<target-ip>:8000/metrics
 curl http://<target-ip>:9100/metrics
 ```
 
-## C. Docker Target Mode
+## C. Kubernetes Mode
 
-這條路只做本機 demo，不需要 Linux VM。Terraform 建本機 Docker app containers，Prometheus 用 blackbox exporter 探測 HTTP health。
-
-啟動：
+需求：`docker`、`k3d`、`kubectl`、`helm`。
 
 ```bash
-make docker-up ANSIBLE_FLAGS="--ask-become-pass"
+make build-agent-image          # 建 monitor-agent Docker image
+make k8s-up                     # k3d 起 cluster + Helm 裝 kube-prometheus-stack
+make k8s-verify                 # smoke check
 ```
 
-調整 app target 數量：
+加入外部 VM target（讓同一個 Prometheus 同時監控 k8s + VM）：
 
 ```bash
-make docker-scale NODE_COUNT=3 ANSIBLE_FLAGS="--ask-become-pass"
+cp k8s/manifests/external-targets-secret.example.yaml k8s/manifests/external-targets-secret.yaml
+# 編輯 targets 列表
+kubectl -n monitoring apply -f k8s/manifests/external-targets-secret.yaml
 ```
 
-模擬 app down：
+或用 Terraform 部署（同樣的 k3d + Helm chart，但 IaC 化）：
 
 ```bash
-docker stop iac-lab-app-node-01
+terraform -chdir=infra/k8s/terraform init
+terraform -chdir=infra/k8s/terraform apply
 ```
 
-恢復 desired state：
+清除：
 
 ```bash
-terraform -chdir=infra/docker/terraform apply
-make vm-stack ANSIBLE_FLAGS="--ask-become-pass"
-```
-
-清掉 Docker demo：
-
-```bash
-make docker-down ANSIBLE_FLAGS="--ask-become-pass"
+make k8s-down
 ```
 
 ## 常用檢查

@@ -1,7 +1,6 @@
 SHELL := /usr/bin/env bash
 
 VM_TF_DIR     := infra/vm/terraform
-DOCKER_TF_DIR := infra/docker/terraform
 K8S_TF_DIR    := infra/k8s/terraform
 K8S_DIR       := k8s
 ANSIBLE_FLAGS ?=
@@ -38,9 +37,6 @@ validate: prepare-validation-files
 	terraform -chdir=$(VM_TF_DIR) fmt -check
 	terraform -chdir=$(VM_TF_DIR) init -backend=false
 	terraform -chdir=$(VM_TF_DIR) validate
-	terraform -chdir=$(DOCKER_TF_DIR) fmt -check
-	terraform -chdir=$(DOCKER_TF_DIR) init -backend=false
-	terraform -chdir=$(DOCKER_TF_DIR) validate
 	terraform -chdir=$(K8S_TF_DIR) fmt -check
 	terraform -chdir=$(K8S_TF_DIR) init -backend=false
 	terraform -chdir=$(K8S_TF_DIR) validate

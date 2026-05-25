@@ -1,7 +1,0 @@
-# Copy this file to terraform.tfvars for local Docker target overrides.
-
-node_count = 2
-
-app_message_prefix = "hello from terraform node"
-
-host_http_base_port = 18080
