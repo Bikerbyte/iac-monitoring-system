@@ -15,3 +15,21 @@ variable "chart_version" {
   type        = string
   default     = "65.0.0"
 }
+
+variable "grafana_port" {
+  description = "Host port mapped to Grafana through the k3d load balancer."
+  type        = number
+  default     = 3000
+}
+
+variable "prometheus_port" {
+  description = "Host port mapped to Prometheus through the k3d load balancer."
+  type        = number
+  default     = 9090
+}
+
+variable "alertmanager_port" {
+  description = "Host port mapped to Alertmanager through the k3d load balancer."
+  type        = number
+  default     = 9093
+}

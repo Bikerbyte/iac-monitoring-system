@@ -57,8 +57,17 @@ flowchart LR
 
 ## Demo
 
-<img width="1920" height="1400" alt="grafana-agent-overview" src="https://github.com/user-attachments/assets/ff5b0b91-8d08-44d4-8c97-95ea5432cb38" />
-<img width="1920" height="1400" alt="grafana-linux-overview" src="https://github.com/user-attachments/assets/7e4a08b8-aeb7-4df4-8369-330d04509eae" />
+### Kubernetes mode
+
+<img width="1600" height="1000" alt="k8s prometheus monitor-agent target up" src="screenshots/portfolio-k8s/01b-prometheus-monitor-agent-target.png" />
+<img width="1600" height="1000" alt="k8s grafana node exporter dashboard" src="screenshots/portfolio-k8s/02-grafana-node-exporter.png" />
+<img width="1600" height="900" alt="k8s monitoring namespace pods" src="screenshots/portfolio-k8s/03-kubectl-pods.png" />
+<img width="1600" height="900" alt="k8s prometheus operator service monitor and rule" src="screenshots/portfolio-k8s/04-k8s-crds.png" />
+
+### VM mode
+
+<img width="1920" height="1400" alt="vm grafana agent overview" src="screenshots/grafana-agent-overview.png" />
+<img width="1920" height="1400" alt="vm grafana linux overview" src="screenshots/grafana-linux-overview.png" />
 
 ## 專案結構
 
