@@ -6,12 +6,19 @@ grafana:
   adminUser: admin
   adminPassword: admin
   defaultDashboardsTimezone: browser
+  service:
+    type: LoadBalancer
+    port: 3000
+    targetPort: 3000
 
   # Mount the same dashboards used in VM mode so the Grafana UX is identical.
   dashboardsConfigMaps:
     default: iac-grafana-dashboards
 
 prometheus:
+  service:
+    type: LoadBalancer
+    reloaderWebPort: 18080
   prometheusSpec:
     retention: 7d
     # Pick up PodMonitor / ServiceMonitor objects in any namespace.
@@ -27,6 +34,8 @@ prometheus:
       key: external-targets.yaml
 
 alertmanager:
+  service:
+    type: LoadBalancer
   alertmanagerSpec:
     retention: 120h
 
