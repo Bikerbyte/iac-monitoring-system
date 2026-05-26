@@ -8,6 +8,9 @@ AGENT_IMAGE="${2:-monitor-agent:dev}"
 NAMESPACE="monitoring"
 RELEASE="kube-prometheus-stack"
 CHART_VERSION="${CHART_VERSION:-65.0.0}"
+GRAFANA_PORT="${GRAFANA_PORT:-3000}"
+PROMETHEUS_PORT="${PROMETHEUS_PORT:-9090}"
+ALERTMANAGER_PORT="${ALERTMANAGER_PORT:-9093}"
 
 require() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -23,9 +26,9 @@ require docker
 if ! k3d cluster list | awk '{print $1}' | grep -qx "$CLUSTER"; then
   echo ">>> creating k3d cluster: $CLUSTER"
   k3d cluster create "$CLUSTER" \
-    --port "3000:3000@loadbalancer" \
-    --port "9090:9090@loadbalancer" \
-    --port "9093:9093@loadbalancer" \
+    --port "${GRAFANA_PORT}:3000@loadbalancer" \
+    --port "${PROMETHEUS_PORT}:9090@loadbalancer" \
+    --port "${ALERTMANAGER_PORT}:9093@loadbalancer" \
     --wait
 else
   echo ">>> k3d cluster $CLUSTER already exists"
@@ -67,6 +70,6 @@ kubectl apply -f k8s/manifests/servicemonitor.yaml
 kubectl apply -f k8s/manifests/prometheusrule.yaml
 
 echo ">>> done"
-echo "Grafana:      http://localhost:3000  (admin / admin)"
-echo "Prometheus:   http://localhost:9090"
-echo "Alertmanager: http://localhost:9093"
+echo "Grafana:      http://localhost:${GRAFANA_PORT}  (admin / admin)"
+echo "Prometheus:   http://localhost:${PROMETHEUS_PORT}"
+echo "Alertmanager: http://localhost:${ALERTMANAGER_PORT}"

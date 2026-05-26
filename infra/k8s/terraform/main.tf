@@ -24,16 +24,19 @@ terraform {
 # wrap external CLI steps that the rest of the IaC then depends on.
 resource "null_resource" "k3d_cluster" {
   triggers = {
-    cluster_name = var.cluster_name
+    cluster_name      = var.cluster_name
+    grafana_port      = tostring(var.grafana_port)
+    prometheus_port   = tostring(var.prometheus_port)
+    alertmanager_port = tostring(var.alertmanager_port)
   }
 
   provisioner "local-exec" {
     command = <<-EOT
       if ! k3d cluster list | awk '{print $1}' | grep -qx "${var.cluster_name}"; then
         k3d cluster create "${var.cluster_name}" \
-          --port "3000:3000@loadbalancer" \
-          --port "9090:9090@loadbalancer" \
-          --port "9093:9093@loadbalancer" \
+          --port "${var.grafana_port}:3000@loadbalancer" \
+          --port "${var.prometheus_port}:9090@loadbalancer" \
+          --port "${var.alertmanager_port}:9093@loadbalancer" \
           --wait
       fi
     EOT
