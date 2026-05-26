@@ -59,10 +59,11 @@ flowchart LR
 
 ### Kubernetes mode
 
-<img width="1600" height="1000" alt="k8s prometheus monitor-agent target up" src="screenshots/portfolio-k8s/01b-prometheus-monitor-agent-target.png" />
+<img width="1600" height="1000" alt="k8s prometheus targets monitor-agent and node-exporter up" src="screenshots/portfolio-k8s/01-prometheus-targets.png" />
 <img width="1600" height="1000" alt="k8s grafana node exporter dashboard" src="screenshots/portfolio-k8s/02-grafana-node-exporter.png" />
 <img width="1600" height="900" alt="k8s monitoring namespace pods" src="screenshots/portfolio-k8s/03-kubectl-pods.png" />
 <img width="1600" height="900" alt="k8s prometheus operator service monitor and rule" src="screenshots/portfolio-k8s/04-k8s-crds.png" />
+<img width="1600" height="1000" alt="k8s alertmanager demo alert firing" src="screenshots/portfolio-k8s/05-alertmanager-demo-alert.png" />
 
 ### VM mode
 
