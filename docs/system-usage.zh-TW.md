@@ -168,7 +168,7 @@ curl http://localhost:9093/-/healthy
 curl http://localhost:3000/api/health
 curl http://<target-public-ip>:8000/metrics
 curl http://<target-public-ip>:9100/metrics
-make verify-stack
+make vm-smoke
 ```
 
 打開：
@@ -210,16 +210,16 @@ enable_aws_resources = false
 
 server_hosts = [
   {
-    name                 = "monitor-node-02"
-    ip_address           = "192.168.0.146"
-    ansible_user         = "deploy"
-    ssh_private_key_file = ""
+    name                 = "monitor-node-01"
+    ip_address           = "10.0.0.11"
+    ansible_user         = "ubuntu"
+    ssh_private_key_file = "~/.ssh/id_rsa"
   },
   {
-    name                 = "monitor-node-03"
-    ip_address           = "192.168.0.235"
-    ansible_user         = "deploy"
-    ssh_private_key_file = ""
+    name                 = "monitor-node-02"
+    ip_address           = "10.0.0.12"
+    ansible_user         = "ubuntu"
+    ssh_private_key_file = "~/.ssh/id_rsa"
   }
 ]
 ```
@@ -278,7 +278,7 @@ curl http://localhost:9100/metrics
 在 control node 上：
 
 ```bash
-make verify-stack
+make vm-smoke
 curl http://localhost:9090/-/healthy
 curl http://<target-ip>:8000/metrics
 curl http://<target-ip>:9100/metrics
@@ -297,9 +297,9 @@ make k8s-verify                 # smoke check
 加入外部 VM target（讓同一個 Prometheus 同時監控 k8s + VM）：
 
 ```bash
-cp k8s/manifests/external-targets-secret.example.yaml k8s/manifests/external-targets-secret.yaml
+cp k8s/user-managed/external-targets-secret.example.yaml k8s/user-managed/external-targets-secret.yaml
 # 編輯 targets 列表
-kubectl -n monitoring apply -f k8s/manifests/external-targets-secret.yaml
+kubectl -n monitoring apply -f k8s/user-managed/external-targets-secret.yaml
 ```
 
 或用 Terraform 部署（同樣的 k3d + Helm chart，但 IaC 化）：
@@ -475,7 +475,7 @@ runbooks/
 
 ```bash
 make vm-stack ANSIBLE_FLAGS="--ask-become-pass"
-make verify-stack
+make vm-smoke
 ```
 
 如果有手動改過 `/opt/iac-monitoring-stack`，先備份：
