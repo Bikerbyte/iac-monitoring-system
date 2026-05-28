@@ -16,7 +16,7 @@ variable "enable_aws_resources" {
 }
 
 variable "server_hosts" {
-  description = "Existing Linux servers used when enable_aws_resources is false."
+  description = "Existing Linux servers used when enable_aws_resources is false. Populate via terraform.tfvars; the default is empty so the repo doesn't ship hard-coded hostnames."
   type = list(object({
     name                 = string
     ip_address           = string
@@ -24,20 +24,7 @@ variable "server_hosts" {
     ssh_private_key_file = optional(string, "")
   }))
 
-  default = [
-    {
-      name                 = "monitor-node-02"
-      ip_address           = "192.168.0.146"
-      ansible_user         = "deploy"
-      ssh_private_key_file = ""
-    },
-    {
-      name                 = "monitor-node-03"
-      ip_address           = "192.168.0.235"
-      ansible_user         = "deploy"
-      ssh_private_key_file = ""
-    }
-  ]
+  default = []
 }
 
 variable "ansible_user" {
@@ -59,7 +46,7 @@ variable "ssh_public_key_file" {
 }
 
 variable "aws_region" {
-  description = "AWS region for the Server Agent Mode."
+  description = "AWS region for VM mode when enable_aws_resources is true."
   type        = string
   default     = "ap-northeast-1"
 }
@@ -89,7 +76,7 @@ variable "aws_key_pair_name" {
 }
 
 variable "aws_security_group_name" {
-  description = "Security group name for the AWS Server Agent Mode."
+  description = "Security group name for VM mode EC2 resources."
   type        = string
   default     = "iac-monitoring-system-sg"
 }

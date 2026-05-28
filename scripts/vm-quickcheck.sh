@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
+# vm-quickcheck.sh — HTTP-only health check for the VM-mode monitoring stack.
+# No SSH, no Ansible. Use this for a fast sanity pass when Prometheus / Grafana
+# / Alertmanager URLs are already reachable from this host. For deep checks
+# (systemctl, log parsing, Prometheus targets API) use scripts/vm-smoke.sh.
 set -u
 
-INVENTORY_FILE="${INVENTORY_FILE:-ansible/inventory.ini}"
+INVENTORY="${INVENTORY:-ansible/inventory.ini}"
 PROMETHEUS_URL="${PROMETHEUS_URL:-http://localhost:9090}"
 GRAFANA_URL="${GRAFANA_URL:-http://localhost:3000}"
 ALERTMANAGER_URL="${ALERTMANAGER_URL:-http://localhost:9093}"
@@ -58,7 +62,7 @@ load_targets_from_inventory() {
       }
       print target
     }
-  ' "$INVENTORY_FILE"
+  ' "$INVENTORY"
 }
 
 echo "Checking local monitoring stack"
@@ -66,13 +70,13 @@ check_url "Prometheus" "$PROMETHEUS_URL/-/healthy"
 check_url "Grafana" "$GRAFANA_URL/api/health"
 check_url "Alertmanager" "$ALERTMANAGER_URL/-/healthy"
 
-if [[ ! -f "$INVENTORY_FILE" ]]; then
-  warn "Inventory file not found: $INVENTORY_FILE"
+if [[ ! -f "$INVENTORY" ]]; then
+  warn "Inventory not found: $INVENTORY"
 else
   mapfile -t targets < <(load_targets_from_inventory)
 
   if [[ "${#targets[@]}" -eq 0 ]]; then
-    warn "No monitoring_agents targets found in $INVENTORY_FILE"
+    warn "No monitoring_agents targets in $INVENTORY"
   else
     echo "Checking target metrics endpoints"
     for target in "${targets[@]}"; do
