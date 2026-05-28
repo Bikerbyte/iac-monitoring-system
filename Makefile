@@ -11,8 +11,8 @@ K3D_CLUSTER   ?= iac-monitoring
 .PHONY: help validate prepare-validation-files require-aws-tfvars \
         vm-init vm-plan vm-apply vm-agent vm-stack vm-up \
         vm-aws-plan vm-aws-apply vm-aws-deploy vm-aws-destroy \
-        k8s-up k8s-down k8s-verify build-agent-image k3d-load-agent \
-        smoke-vm verify-stack
+        k8s-init k8s-up k8s-down k8s-verify build-agent-image \
+        vm-smoke vm-quickcheck test
 
 help:
 	@echo "VM (hybrid target) targets:"
@@ -25,13 +25,15 @@ help:
 	@echo
 	@echo "Kubernetes targets:"
 	@echo "  make build-agent-image         Build monitor-agent Docker image ($(AGENT_IMAGE))"
-	@echo "  make k8s-up                    Create k3d cluster, install kube-prometheus-stack + manifests"
-	@echo "  make k8s-down                  Destroy k3d cluster"
+	@echo "  make k8s-up                    Terraform apply: k3d + kube-prometheus-stack + monitor-agent manifests"
+	@echo "  make k8s-down                  Terraform destroy: tears down the k3d cluster and Helm release"
 	@echo "  make k8s-verify                Smoke-check k8s monitoring stack"
 	@echo
 	@echo "Misc:"
-	@echo "  make validate                  Run Terraform / Ansible / JSON / Python static checks"
-	@echo "  make verify-stack              Check VM Prometheus / Grafana / Alertmanager endpoints"
+	@echo "  make validate                  Run Terraform / Ansible / JSON / Python static checks + agent unit tests"
+	@echo "  make test                      Run agent pytest suite only"
+	@echo "  make vm-quickcheck             HTTP-only sanity check of VM Prometheus / Grafana / Alertmanager"
+	@echo "  make vm-smoke                  Deep VM smoke check (SSH + systemctl + log + Prometheus API)"
 
 validate: prepare-validation-files
 	terraform -chdir=$(VM_TF_DIR) fmt -check
@@ -43,10 +45,13 @@ validate: prepare-validation-files
 	ansible-playbook --syntax-check -i ansible/inventory.ini ansible/vm-deploy.yml
 	jq empty ansible/files/grafana/dashboards/*.json
 	python3 -m py_compile agent/agent.py
-	bash -n scripts/smoke-server.sh
-	bash -n scripts/verify-monitoring-stack.sh
-	bash -n scripts/k8s-up.sh
+	bash -n scripts/vm-smoke.sh
+	bash -n scripts/vm-quickcheck.sh
 	bash -n scripts/k8s-verify.sh
+	$(MAKE) test
+
+test:
+	cd agent && python3 -m pytest -q
 
 prepare-validation-files:
 	mkdir -p ansible/group_vars/monitoring_stack
@@ -96,22 +101,28 @@ vm-aws-deploy: vm-agent vm-stack
 build-agent-image:
 	docker build -t $(AGENT_IMAGE) -f agent/Dockerfile .
 
-k3d-load-agent: build-agent-image
-	k3d image import $(AGENT_IMAGE) -c $(K3D_CLUSTER)
+k8s-init:
+	terraform -chdir=$(K8S_TF_DIR) init
 
-k8s-up:
-	bash scripts/k8s-up.sh $(K3D_CLUSTER) $(AGENT_IMAGE)
+k8s-up: build-agent-image k8s-init
+	terraform -chdir=$(K8S_TF_DIR) apply -auto-approve \
+		-var cluster_name=$(K3D_CLUSTER) \
+		-var agent_image=$(AGENT_IMAGE)
 
-k8s-down:
-	k3d cluster delete $(K3D_CLUSTER)
+k8s-down: k8s-init
+	terraform -chdir=$(K8S_TF_DIR) destroy -auto-approve \
+		-var cluster_name=$(K3D_CLUSTER) \
+		-var agent_image=$(AGENT_IMAGE)
 
 k8s-verify:
 	bash scripts/k8s-verify.sh
 
 # ---------------- misc ----------------
 
-smoke-vm:
-	bash scripts/smoke-server.sh
+# Deep smoke check — requires SSH into inventory hosts.
+vm-smoke:
+	bash scripts/vm-smoke.sh
 
-verify-stack:
-	bash scripts/verify-monitoring-stack.sh
+# HTTP-only sanity check — no SSH required.
+vm-quickcheck:
+	bash scripts/vm-quickcheck.sh
