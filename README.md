@@ -49,9 +49,9 @@ flowchart LR
 
 | 元件 | 角色 |
 |------|------|
-| **Terraform** | `infra/vm` 建立 EC2 + Ansible inventory；`infra/k8s` 建立 k3d cluster + 安裝 Helm chart |
+| **Terraform** | `infra/vm` 建立 EC2 + Ansible inventory；`infra/k8s` 建立 k3d cluster、安裝 Helm chart、套用 monitor-agent manifests |
 | **Ansible** | VM mode 部署 monitor-agent / node-exporter / Prometheus stack（透過 docker-compose） |
-| **Helm** | k8s mode 安裝 kube-prometheus-stack（含 Prometheus Operator + Grafana + Alertmanager） |
+| **Helm** | k8s mode 安裝 kube-prometheus-stack（含 Prometheus Operator + Grafana + Alertmanager），由 Terraform `helm_release` 管理 |
 | **monitor-agent** | 自製 Python agent，採 CPU / memory / zombie process + DNS / TCP 檢查 |
 | **PrometheusRule** | 6 條 alert 涵蓋 instance down / CPU / memory / disk / load |
 
@@ -75,24 +75,27 @@ flowchart LR
 ```text
 agent/
   agent.py              Python monitoring agent
+  test_agent.py         pytest suite
   config.yml            agent config (DNS / TCP targets)
   Dockerfile            container image for k8s mode
 ansible/
-  vm-deploy.yml         deploy agent + Prometheus stack to VMs
+  vm-deploy.yml         thin playbook composing the two roles
+  roles/monitor_agent/  monitor-agent systemd role (venv + service + logrotate)
   roles/node_exporter/  Node Exporter systemd role
   templates/            docker-compose, Prometheus, Alertmanager templates
   files/grafana/        dashboards + provisioning
   files/prometheus/     alert rules (VM mode)
 k8s/
   helm/values.yaml      kube-prometheus-stack overrides
-  manifests/            DaemonSet, ServiceMonitor, PrometheusRule, external-targets Secret
+  manifests/            auto-applied by Terraform: DaemonSet, ServiceMonitor, PrometheusRule
+  user-managed/         hand-applied templates (external-targets Secret)
 infra/
   vm/terraform/         existing Linux server / AWS EC2
-  k8s/terraform/        k3d + Helm release
+  k8s/terraform/        k3d + Helm release + manifests
 scripts/
-  k8s-up.sh             one-shot k3d + Helm bootstrap
   k8s-verify.sh         smoke check k8s targets
-  smoke-server.sh       smoke check VM targets
+  vm-smoke.sh           deep smoke check VM targets (SSH + Ansible)
+  vm-quickcheck.sh      HTTP-only quick check of VM stack endpoints
 runbooks/               6 incident runbooks
 ```
 
@@ -100,13 +103,14 @@ runbooks/               6 incident runbooks
 
 ### Kubernetes mode（推薦）
 
-需求：`docker`、`k3d`、`kubectl`、`helm`
+需求：`docker`、`k3d`、`kubectl`、`helm`、`terraform`
 
 ```bash
-make build-agent-image
-make k8s-up
+make k8s-up        # 包：build agent image → terraform apply (k3d + helm + manifests)
 make k8s-verify
 ```
+
+完整 k8s 部署完全由 Terraform 驅動 — `infra/k8s/terraform` 內的 `helm_release`、`kubernetes_namespace`、`kubernetes_secret`、`kubernetes_config_map` 一次帶起 k3d cluster、kube-prometheus-stack、monitor-agent DaemonSet / ServiceMonitor / PrometheusRule。
 
 - Grafana: <http://localhost:3000>（admin / admin）
 - Prometheus: <http://localhost:9090>
@@ -115,23 +119,19 @@ make k8s-verify
 加入外部 VM target：
 
 ```bash
-cp k8s/manifests/external-targets-secret.example.yaml k8s/manifests/external-targets-secret.yaml
+cp k8s/user-managed/external-targets-secret.example.yaml k8s/user-managed/external-targets-secret.yaml
 # 編輯 targets 列表
-kubectl -n monitoring apply -f k8s/manifests/external-targets-secret.yaml
+kubectl -n monitoring apply -f k8s/user-managed/external-targets-secret.yaml
 ```
+
+> `k8s/manifests/` 內的 manifest 由 Terraform 自動套用,使用者不需手動處理;`k8s/user-managed/` 則是放給人手動 apply 的範本。
+
+Secret 的 `data` 在 Terraform 中標記為 `ignore_changes`，後續 `terraform apply` 不會覆寫 kubectl 寫入的 target 清單。
 
 清除：
 
 ```bash
-make k8s-down
-```
-
-### 改用 Terraform 部署 k8s
-
-```bash
-terraform -chdir=infra/k8s/terraform init
-terraform -chdir=infra/k8s/terraform apply
-# 同樣是 k3d + kube-prometheus-stack，但完全由 Terraform 管理
+make k8s-down      # terraform destroy（會把 k3d cluster 一併刪除）
 ```
 
 ### VM mode（既有 Linux server）
@@ -142,7 +142,7 @@ cp infra/vm/terraform/terraform.tfvars.example infra/vm/terraform/terraform.tfva
 
 make vm-apply
 make vm-up ANSIBLE_FLAGS="--ask-become-pass"
-make verify-stack
+make vm-smoke
 ```
 
 ### VM mode（AWS EC2）
@@ -153,7 +153,7 @@ cp infra/vm/terraform/terraform.tfvars.aws.example infra/vm/terraform/terraform.
 
 make vm-aws-apply
 make vm-aws-deploy ANSIBLE_FLAGS="--ask-become-pass"
-make verify-stack
+make vm-smoke
 make vm-aws-destroy  # demo 結束清資源
 ```
 
@@ -173,4 +173,5 @@ HighLoadAverage     load5 > CPU 核心數 for 5m
 ## 文件
 
 - [docs/system-usage.zh-TW.md](docs/system-usage.zh-TW.md) — 完整部署、debug、alert 測試流程
+- [docs/project-study-guide.zh-TW.md](docs/project-study-guide.zh-TW.md) — 專案元件、Kubernetes/VM mode、Terraform/Ansible 觀念整理
 - [runbooks/](runbooks/) — 6 篇 incident runbook
