@@ -60,12 +60,24 @@ resource "null_resource" "k3d_cluster" {
 # Import the locally-built monitor-agent image into k3d so the DaemonSet can
 # pull it with IfNotPresent without leaving the host. Must complete before
 # the DaemonSet is applied; otherwise pods stall on ImagePullBackOff.
+#
+# Trigger keys agent_image_id (sha256) — populated by Makefile k8s-up via
+# `docker image inspect` — so rebuilding monitor-agent:dev with the same tag
+# still re-imports the image. Without this, Terraform sees no var change
+# after a rebuild and skips the import, leaving k3d running stale bits.
+#
+# After re-import we also `kubectl rollout restart` the DaemonSet. The pods
+# use imagePullPolicy: IfNotPresent against an unchanged tag, so without a
+# restart they'd keep their cached image even though k3d now has the new one.
+# The restart is no-op on first apply (DaemonSet doesn't exist yet) — `|| true`
+# absorbs that case.
 resource "null_resource" "agent_image_import" {
   depends_on = [null_resource.k3d_cluster]
 
   triggers = {
-    cluster_name = var.cluster_name
-    agent_image  = var.agent_image
+    cluster_name   = var.cluster_name
+    agent_image    = var.agent_image
+    agent_image_id = var.agent_image_id
   }
 
   provisioner "local-exec" {
@@ -75,6 +87,8 @@ resource "null_resource" "agent_image_import" {
         exit 1
       fi
       k3d image import "${var.agent_image}" -c "${var.cluster_name}"
+      kubectl --context "k3d-${var.cluster_name}" -n monitoring \
+        rollout restart daemonset/monitor-agent 2>/dev/null || true
     EOT
   }
 }

@@ -22,6 +22,12 @@ variable "agent_image" {
   default     = "monitor-agent:dev"
 }
 
+variable "agent_image_id" {
+  description = "Docker image ID (sha256) of agent_image. Used as a re-import trigger: when the tag stays the same but the underlying image is rebuilt, the digest changes and forces k3d image import + DaemonSet rollout. Leave empty to import only on first apply; Makefile k8s-up populates this via `docker image inspect`."
+  type        = string
+  default     = ""
+}
+
 variable "grafana_port" {
   description = "Host port mapped to Grafana through the k3d load balancer."
   type        = number
