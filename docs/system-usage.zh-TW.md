@@ -8,17 +8,17 @@
 |---|---|---|
 | A. AWS EC2 Server Agent Mode | 真的建立一台 Linux VM，部署 agent / Node Exporter | 會 |
 | B. Existing Linux Server Mode | 用你已經有的 Linux server | 不會 |
-| C. Docker Target Mode | 純本機 demo app targets | 不會 |
+| C. Kubernetes Mode | 本機 k3d + Helm 建監控 stack，可選擇加上外部 VM targets | 不會 |
 
 多數情況請走 **A. AWS EC2 Server Agent Mode** 或 **B. Existing Linux Server Mode**。
-Docker Target Mode 只是快速 demo，不是主要 monitoring flow。
+Kubernetes Mode 主要用於容器化監控流程；若要監控 Linux VM，請搭配 A 或 B 路徑。
 
 ## 0. 開始前
 
 所有指令都在專案根目錄跑：
 
 ```bash
-cd /home/ianhsu/Projects/iac-monitoring-system
+cd <repo-root>/iac-monitoring-system
 ```
 
 確認工具：
