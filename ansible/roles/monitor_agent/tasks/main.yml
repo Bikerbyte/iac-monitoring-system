@@ -1,0 +1,99 @@
+---
+- name: Update apt package cache on Debian based hosts
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_pkg_mgr == "apt"
+
+- name: Install OS packages for Python agent
+  ansible.builtin.package:
+    name:
+      - python3
+      - python3-pip
+      - python3-venv
+      - logrotate
+    state: present
+
+- name: Create agent application directory
+  ansible.builtin.file:
+    path: "{{ monitor_agent_app_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create agent config directory
+  ansible.builtin.file:
+    path: "{{ monitor_agent_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy monitoring agent script
+  ansible.builtin.copy:
+    src: "{{ monitor_agent_source_dir }}/agent.py"
+    dest: "{{ monitor_agent_app_dir }}/agent.py"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart monitor agent
+
+- name: Deploy monitoring agent config
+  ansible.builtin.copy:
+    src: "{{ monitor_agent_source_dir }}/config.yml"
+    dest: "{{ monitor_agent_config_dir }}/config.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart monitor agent
+
+- name: Deploy Python requirements
+  ansible.builtin.copy:
+    src: "{{ monitor_agent_requirements_file }}"
+    dest: "{{ monitor_agent_app_dir }}/requirements.txt"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install Python dependencies
+  ansible.builtin.pip:
+    requirements: "{{ monitor_agent_app_dir }}/requirements.txt"
+    virtualenv: "{{ monitor_agent_venv_dir }}"
+    virtualenv_command: python3 -m venv
+
+- name: Ensure log file exists
+  ansible.builtin.file:
+    path: "{{ monitor_agent_log_file }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+    modification_time: preserve
+    access_time: preserve
+
+- name: Deploy monitor agent logrotate config
+  ansible.builtin.copy:
+    src: logrotate-monitor-agent
+    dest: /etc/logrotate.d/monitor-agent
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy systemd service
+  ansible.builtin.copy:
+    src: monitor-agent.service
+    dest: /etc/systemd/system/monitor-agent.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart monitor agent
+
+- name: Enable and start monitor agent
+  ansible.builtin.systemd:
+    name: monitor-agent
+    enabled: true
+    state: started
+    daemon_reload: true

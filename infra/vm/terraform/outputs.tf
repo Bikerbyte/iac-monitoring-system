@@ -1,5 +1,5 @@
 output "system_mode" {
-  description = "Current Server Agent Mode."
+  description = "Current VM mode backend."
   value       = var.enable_aws_resources ? "aws-ec2" : "mock-inventory"
 }
 

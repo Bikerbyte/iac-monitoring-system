@@ -1,0 +1,9 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart monitor agent
+  ansible.builtin.systemd:
+    name: monitor-agent
+    state: restarted

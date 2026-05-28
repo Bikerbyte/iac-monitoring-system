@@ -5,6 +5,7 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.tf text eol=lf
+*.tfvars* text eol=lf
 *.service text eol=lf
 *.sh text eol=lf
 *.ps1 text eol=crlf
