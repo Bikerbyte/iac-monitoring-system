@@ -1,6 +1,6 @@
 # Copy this file to terraform.tfvars for local server or AWS mode overrides.
-# Server Agent Mode is the primary VM/Linux monitoring path.
-# Docker Target Mode remains available separately as a quick local demo.
+# VM mode is the Linux server monitoring path.
+# Use Kubernetes mode separately for the local k3d + Helm monitoring stack.
 # Default mock mode does not create AWS resources.
 
 node_count           = 2
@@ -8,16 +8,16 @@ enable_aws_resources = false
 
 server_hosts = [
   {
-    name                 = "monitor-node-02"
-    ip_address           = "192.168.0.146"
-    ansible_user         = "deploy"
-    ssh_private_key_file = ""
+    name                 = "monitor-node-01"
+    ip_address           = "10.0.0.11"
+    ansible_user         = "ubuntu"
+    ssh_private_key_file = "~/.ssh/id_rsa"
   },
   {
-    name                 = "monitor-node-03"
-    ip_address           = "192.168.0.235"
-    ansible_user         = "deploy"
-    ssh_private_key_file = ""
+    name                 = "monitor-node-02"
+    ip_address           = "10.0.0.12"
+    ansible_user         = "ubuntu"
+    ssh_private_key_file = "~/.ssh/id_rsa"
   }
 ]
 

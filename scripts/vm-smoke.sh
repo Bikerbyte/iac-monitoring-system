@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# vm-smoke.sh — deep smoke check for the VM-mode monitoring stack.
+# Requires SSH access to inventory hosts. Verifies systemd state, JSON log
+# shape, and Prometheus target health. For a lightweight HTTP-only pass use
+# scripts/vm-quickcheck.sh.
 set -euo pipefail
 
 INVENTORY="${INVENTORY:-ansible/inventory.ini}"
