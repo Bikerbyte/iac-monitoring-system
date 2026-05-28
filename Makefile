@@ -105,9 +105,12 @@ k8s-init:
 	terraform -chdir=$(K8S_TF_DIR) init
 
 k8s-up: build-agent-image k8s-init
+	@AGENT_IMAGE_ID=$$(docker image inspect $(AGENT_IMAGE) --format='{{.Id}}'); \
+	echo "agent image id: $$AGENT_IMAGE_ID"; \
 	terraform -chdir=$(K8S_TF_DIR) apply -auto-approve \
 		-var cluster_name=$(K3D_CLUSTER) \
-		-var agent_image=$(AGENT_IMAGE)
+		-var agent_image=$(AGENT_IMAGE) \
+		-var agent_image_id=$$AGENT_IMAGE_ID
 
 k8s-down: k8s-init
 	terraform -chdir=$(K8S_TF_DIR) destroy -auto-approve \
