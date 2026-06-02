@@ -59,12 +59,18 @@ flowchart LR
 
 ### Kubernetes mode
 
+#### 4-node k3d demo
+
 <img width="1408" height="792" alt="4-node k3d monitoring composite with DaemonSet pods and Grafana node metrics" src="screenshots/portfolio-k8s-4nodes/00-104-composite-clean-704x396.png" />
 <img width="1600" height="1000" alt="4-node k8s Prometheus targets with monitor-agent and node-exporter 4/4 up" src="screenshots/portfolio-k8s-4nodes/01-prometheus-targets-4nodes.png" />
 <img width="1600" height="1000" alt="4-node k8s Grafana node exporter dashboard" src="screenshots/portfolio-k8s-4nodes/02-grafana-node-exporter-4nodes.png" />
 <img width="1920" height="900" alt="4-node k8s monitoring namespace pods scheduled across server and worker nodes" src="screenshots/portfolio-k8s-4nodes/03-kubectl-pods-4nodes.png" />
-<img width="1600" height="900" alt="k8s prometheus operator service monitor and rule" src="screenshots/portfolio-k8s/04-k8s-crds.png" />
-<img width="1600" height="1000" alt="k8s alertmanager demo alert firing" src="screenshots/portfolio-k8s/05-alertmanager-demo-alert.png" />
+
+#### Validation evidence
+
+| Prometheus Operator CRDs | Alertmanager firing alert |
+|---|---|
+| <img alt="k8s prometheus operator service monitor and rule" src="screenshots/portfolio-k8s/04-k8s-crds.png" /> | <img alt="k8s alertmanager demo alert firing" src="screenshots/portfolio-k8s/05-alertmanager-demo-alert.png" /> |
 
 ### VM mode
 
