@@ -23,26 +23,50 @@
 ## 架構
 
 ```mermaid
-flowchart LR
+flowchart TB
+  subgraph IAC["IaC layer"]
+    direction LR
+    TF["Terraform<br/>aws / helm / kubernetes providers"]
+    ANS["Ansible<br/>vm-deploy.yml"]
+    HELM["Helm<br/>kube-prometheus-stack"]
+  end
+
   subgraph K8S["Kubernetes cluster (k3d / EKS)"]
-    HELM["Helm: kube-prometheus-stack"]
-    DS["monitor-agent DaemonSet"]
-    SM["ServiceMonitor / PrometheusRule"]
-    HELM --> PROM["Prometheus"]
-    HELM --> GRAF["Grafana"]
-    HELM --> AM["Alertmanager"]
-    SM --> PROM
-    DS --> SM
+    direction TB
+    PROM[Prometheus]
+    GRAF[Grafana]
+    AM[Alertmanager]
+    DS[monitor-agent DaemonSet]
+    SM["ServiceMonitor + PrometheusRule"]
+    SECRET["Secret: additionalScrapeConfigs"]
   end
 
   subgraph VMS["External Linux VMs"]
-    AGENT["monitor-agent (systemd)"]
-    NODE["node-exporter (systemd)"]
+    direction LR
+    VAGENT[monitor-agent systemd]
+    VNODE[node-exporter systemd]
   end
 
-  SECRET["Secret: external-targets.yaml<br/>(file_sd-style)"] --> PROM
-  PROM -.scrape.-> AGENT
-  PROM -.scrape.-> NODE
+  TF -.provisions.-> K8S
+  TF -.provisions.-> VMS
+  HELM -.installs.-> PROM
+  HELM -.installs.-> GRAF
+  HELM -.installs.-> AM
+  ANS -.deploys.-> VAGENT
+  ANS -.deploys.-> VNODE
+
+  SM --> PROM
+  SECRET --> PROM
+  PROM ==scrape==> DS
+  PROM ==scrape==> VAGENT
+  PROM ==scrape==> VNODE
+
+  classDef iac fill:#fef3c7,stroke:#d97706,color:#000
+  classDef k8s fill:#dbeafe,stroke:#2563eb,color:#000
+  classDef vm fill:#dcfce7,stroke:#16a34a,color:#000
+  class TF,ANS,HELM iac
+  class PROM,GRAF,AM,DS,SM,SECRET k8s
+  class VAGENT,VNODE vm
 ```
 
 ## 主要元件
