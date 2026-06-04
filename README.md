@@ -7,9 +7,9 @@
 - **ServiceMonitor** 抓取 k8s 內部 workload metrics（monitor-agent DaemonSet）
 - **additionalScrapeConfigs Secret** 動態管理外部 EC2 / Linux VM target
 
-自行開發的 **Python monitor-agent** 同時支援兩種部署形式：在 VM 上以 systemd 執行，在 k8s 上以 DaemonSet 執行，輸出統一格式的 Prometheus metrics。
+**Python monitor-agent** 同時支援兩種部署形式：在 VM 上以 systemd 執行，在 k8s 上以 DaemonSet 執行，輸出統一格式的 Prometheus metrics。
 
-> **設計目標：** 用同一套監控邏輯與 IaC 流程，同時覆蓋 k8s 與 VM 基礎設施。
+達到用同一套監控邏輯與 IaC 流程，同時覆蓋 k8s 與 VM 基礎設施。
 
 ## 使用情境
 
@@ -121,9 +121,9 @@ scripts/
 runbooks/               6 incident runbooks
 ```
 
-## 快速開始
+## 部屬方式
 
-### Kubernetes mode（推薦）
+### Kubernetes mode
 
 需求：`docker`、`k3d`、`kubectl`、`helm`、`terraform`
 
