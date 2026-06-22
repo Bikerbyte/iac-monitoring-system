@@ -156,28 +156,17 @@ Secret 的 `data` 在 Terraform 中標記為 `ignore_changes`，後續 `terrafor
 make k8s-down      # terraform destroy（會把 k3d cluster 一併刪除）
 ```
 
-### VM mode（既有 Linux server）
+### VM mode
 
-```bash
-cp infra/vm/terraform/terraform.tfvars.example infra/vm/terraform/terraform.tfvars
-# 編輯 server_hosts、ansible_user、ssh_private_key_file
+VM mode 走 Terraform + Ansible，分既有 Linux server 與 AWS EC2 兩條路徑，常用 make target：
 
-make vm-apply
-make vm-up ANSIBLE_FLAGS="--ask-become-pass"
-make vm-smoke
-```
+| 路徑 | 建資源 | 部署 | 驗證 / 清除 |
+|------|--------|------|------|
+| 既有 Linux server | `make vm-apply` | `make vm-up ANSIBLE_FLAGS="--ask-become-pass"` | `make vm-smoke` |
+| AWS EC2 | `make vm-aws-apply` | `make vm-aws-deploy ANSIBLE_FLAGS="--ask-become-pass"` | `make vm-smoke` / `make vm-aws-destroy` |
 
-### VM mode（AWS EC2）
-
-```bash
-cp infra/vm/terraform/terraform.tfvars.aws.example infra/vm/terraform/terraform.tfvars.aws
-# 編輯 AMI、VPC、subnet、SSH key、allowed CIDR
-
-make vm-aws-apply
-make vm-aws-deploy ANSIBLE_FLAGS="--ask-become-pass"
-make vm-smoke
-make vm-aws-destroy  # demo 結束清資源
-```
+兩條路徑的 `terraform.tfvars` 範本與逐步驟（含 inventory 產生、debug、alert 測試）見
+[docs/system-usage.zh-TW.md](docs/system-usage.zh-TW.md)。
 
 ## Alert rules
 
