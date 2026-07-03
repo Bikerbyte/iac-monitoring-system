@@ -142,23 +142,55 @@ def _tcp_target() -> agent.TcpTarget:
     return agent.TcpTarget(name="t", host="example.com", port=443, timeout_seconds=1.0)
 
 
+def _tcp_address() -> list[tuple[int, int, int, str, tuple[str, int]]]:
+    return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("203.0.113.10", 443))]
+
+
+class FakeTcpSocket:
+    def __init__(self, connect_error: Exception | None = None) -> None:
+        self.connect_error = connect_error
+        self.timeout: float | None = None
+        self.closed = False
+
+    def settimeout(self, timeout: float) -> None:
+        self.timeout = timeout
+
+    def connect(self, sockaddr: tuple[str, int]) -> None:
+        if self.connect_error:
+            raise self.connect_error
+
+    def close(self) -> None:
+        self.closed = True
+
+
 def test_check_tcp_success() -> None:
-    class FakeSocket:
-        def __enter__(self) -> "FakeSocket":
-            return self
+    fake_socket = FakeTcpSocket()
 
-        def __exit__(self, *exc_info: object) -> None:
-            return None
-
-    with patch.object(agent.socket, "create_connection", return_value=FakeSocket()):
+    with (
+        patch.object(agent.socket, "getaddrinfo", return_value=_tcp_address()),
+        patch.object(agent.socket, "socket", return_value=fake_socket),
+    ):
         outcome = agent.check_tcp(_tcp_target())
 
     assert outcome.ok is True
     assert outcome.failure_type is None
+    assert fake_socket.timeout == 1.0
+    assert fake_socket.closed is True
+
+
+def test_check_tcp_dns_resolution_error_classified() -> None:
+    with patch.object(agent.socket, "getaddrinfo", side_effect=socket.gaierror("no such host")):
+        outcome = agent.check_tcp(_tcp_target())
+
+    assert outcome.ok is False
+    assert outcome.failure_type == "dns_resolution_error"
 
 
 def test_check_tcp_timeout_classified() -> None:
-    with patch.object(agent.socket, "create_connection", side_effect=socket.timeout("timed out")):
+    with (
+        patch.object(agent.socket, "getaddrinfo", return_value=_tcp_address()),
+        patch.object(agent.socket, "socket", return_value=FakeTcpSocket(socket.timeout("timed out"))),
+    ):
         outcome = agent.check_tcp(_tcp_target())
 
     assert outcome.ok is False
@@ -166,7 +198,10 @@ def test_check_tcp_timeout_classified() -> None:
 
 
 def test_check_tcp_refused_classified() -> None:
-    with patch.object(agent.socket, "create_connection", side_effect=ConnectionRefusedError("refused")):
+    with (
+        patch.object(agent.socket, "getaddrinfo", return_value=_tcp_address()),
+        patch.object(agent.socket, "socket", return_value=FakeTcpSocket(ConnectionRefusedError("refused"))),
+    ):
         outcome = agent.check_tcp(_tcp_target())
 
     assert outcome.ok is False
@@ -174,7 +209,10 @@ def test_check_tcp_refused_classified() -> None:
 
 
 def test_check_tcp_other_oserror_classified() -> None:
-    with patch.object(agent.socket, "create_connection", side_effect=OSError("network down")):
+    with (
+        patch.object(agent.socket, "getaddrinfo", return_value=_tcp_address()),
+        patch.object(agent.socket, "socket", return_value=FakeTcpSocket(OSError("network down"))),
+    ):
         outcome = agent.check_tcp(_tcp_target())
 
     assert outcome.ok is False

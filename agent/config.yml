@@ -1,17 +1,36 @@
+# Default monitor-agent config used by both deployment paths:
+#   - Kubernetes mode: baked into the container image, then mounted at /etc/monitor-agent/config.yml
+#   - VM mode: copied by Ansible and started by systemd
+#
+# Keep the config boring and explicit. The agent should be easy to debug from
+# journalctl, Docker logs, Prometheus targets, or a direct curl to :8000/metrics.
 agent:
+  # Seconds between each collection cycle.
   interval_seconds: 60
+
+  # retry_count means extra attempts after the first try:
+  #   retry_count: 2 -> attempt 1 + retry 1 + retry 2 = 3 total attempts
   retry_count: 2
   retry_delay_seconds: 1
+
+  # VM mode writes here. Kubernetes mode passes --log-file "" so logs go to stdout.
   log_file: /var/log/monitor-agent.log
+
+  # Prometheus scrapes this endpoint through ServiceMonitor in k8s mode,
+  # or through static targets in VM mode.
   metrics_enabled: true
   metrics_listen_address: 0.0.0.0
   metrics_port: 8000
 
 network:
+  # DNS targets check name resolution only. Use these when you want to know
+  # whether resolver / upstream DNS is the failure point.
   dns_targets:
     - name: github-website
       host: www.github.com
 
+  # TCP targets check service reachability. The agent resolves the host first,
+  # then attempts a TCP connect and classifies timeout/refused/generic errors.
   tcp_targets:
     - name: external-google
       host: google.com

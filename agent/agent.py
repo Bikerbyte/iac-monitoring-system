@@ -1,9 +1,22 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Lightweight monitoring agent for IaC lab.
+SRE monitoring agent for the IaC monitoring lab.
 
-This agent is intentionally direct: collect local resource data, run a few
-network checks, then write enough log detail for operations troubleshooting.
+Collected metrics
+-----------------
+  - CPU utilisation
+  - Memory utilisation
+  - Zombie process count
+  - DNS resolution health and latency
+  - TCP reachability, retry count, latency, and failure classification
+
+The agent keeps two outputs on purpose: structured JSON logs for operations
+troubleshooting, and Prometheus gauges for dashboarding and alerting.
+
+This file is intentionally plain Python. The goal is not to hide monitoring
+logic behind abstractions; the goal is to make each operational signal easy to
+trace when something is broken at 03:00.
 """
 
 from __future__ import annotations
@@ -14,9 +27,9 @@ import logging
 import socket
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 import psutil
 import yaml
@@ -26,9 +39,22 @@ from prometheus_client import Gauge, start_http_server
 DEFAULT_CONFIG_PATH = "/etc/monitor-agent/config.yml"
 DEFAULT_LOG_FILE = "/var/log/monitor-agent.log"
 DEFAULT_METRICS_PORT = 8000
+
+# Bump this on each agent release. The value is included in every log entry so
+# mixed-version hosts are easy to spot during incident review.
 __version__ = "1.2.0"
+
+# Host identity is attached to every JSON log. Prometheus has labels; log files
+# need their own host field when shipped into a central collector.
 HOSTNAME = socket.gethostname()
 
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics
+#
+# Keep metric names stable. Grafana dashboards, PrometheusRule alerts, and
+# smoke tests can depend on these names after the agent is deployed.
+# ---------------------------------------------------------------------------
 
 RESOURCE_CPU_PERCENT = Gauge("monitor_agent_cpu_percent", "CPU usage collected by the monitor agent.")
 RESOURCE_MEMORY_PERCENT = Gauge("monitor_agent_memory_percent", "Memory usage collected by the monitor agent.")
@@ -61,13 +87,17 @@ NETWORK_CHECK_FAILURE = Gauge(
 LAST_NETWORK_FAILURE_TYPES: dict[tuple[str, str, str, str], str] = {}
 
 
-@dataclass
+# ---------------------------------------------------------------------------
+# Data models
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
 class DnsTarget:
     name: str
     host: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class TcpTarget:
     name: str
     host: str
@@ -76,7 +106,23 @@ class TcpTarget:
 
 
 @dataclass(frozen=True)
+class ResourceStatus:
+    cpu_percent: float
+    memory_percent: float
+    zombie_process_count: int
+
+
+@dataclass(frozen=True)
 class CheckOutcome:
+    """Common result shape for DNS and TCP checks.
+
+    failure_type examples:
+      - dns_resolution_error
+      - tcp_connection_timeout
+      - tcp_connection_refused
+      - tcp_connection_error
+    """
+
     ok: bool
     failure_type: str | None
     message: str
@@ -96,7 +142,17 @@ class AgentConfig:
     tcp_targets: list[TcpTarget]
 
 
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
 def load_config(config_path: str) -> AgentConfig:
+    """Load YAML config and normalize defaults used by systemd and containers.
+
+    The same config file is mounted into the Kubernetes container image and
+    copied to /etc/monitor-agent/config.yml by Ansible in VM mode. Keeping this
+    path stable makes the agent behave the same in both deployment modes.
+    """
     path = Path(config_path)
     if not path.exists():
         raise FileNotFoundError(f"config file not found: {config_path}")
@@ -107,11 +163,13 @@ def load_config(config_path: str) -> AgentConfig:
     agent_section = raw_config.get("agent", {})
     network_section = raw_config.get("network", {})
 
+    # DNS targets validate name resolution only.
     dns_targets = [
         DnsTarget(name=item["name"], host=item["host"])
         for item in network_section.get("dns_targets", [])
     ]
 
+    # TCP targets validate both resolution and connection reachability.
     tcp_targets = [
         TcpTarget(
             name=item["name"],
@@ -138,7 +196,12 @@ def load_config(config_path: str) -> AgentConfig:
     )
 
 
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
 def configure_logging(log_file: str) -> None:
+    """Log to stdout for containers/journald and optionally to a local file."""
     handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
 
     if log_file:
@@ -154,6 +217,14 @@ def configure_logging(log_file: str) -> None:
 
 
 def write_log(level: int, event: str, **fields: object) -> None:
+    """Write one JSON event.
+
+    Example:
+      {"event":"network_check","host":"node-01","status":"ok",...}
+
+    JSON logs are intentionally single-line so journalctl, Docker logs, Loki,
+    or a simple grep can all consume them without special parsing rules.
+    """
     log_item = {
         "event": event,
         "host": HOSTNAME,
@@ -165,7 +236,12 @@ def write_log(level: int, event: str, **fields: object) -> None:
     logging.log(level, json.dumps(log_item, separators=(",", ":"), sort_keys=True))
 
 
+# ---------------------------------------------------------------------------
+# Prometheus endpoint
+# ---------------------------------------------------------------------------
+
 def start_metrics_endpoint(config: AgentConfig) -> None:
+    """Start the /metrics endpoint scraped by Prometheus."""
     if not config.metrics_enabled:
         write_log(logging.INFO, "metrics_endpoint_disabled")
         return
@@ -179,7 +255,21 @@ def start_metrics_endpoint(config: AgentConfig) -> None:
     )
 
 
-def collect_resource_status() -> dict[str, Any]:
+# ---------------------------------------------------------------------------
+# Linux resource checks
+# ---------------------------------------------------------------------------
+
+def collect_resource_status() -> ResourceStatus:
+    """Collect host-level resource signals for both logs and Prometheus gauges.
+
+    psutil is used here instead of hand-parsing /proc so the same code path can
+    run in Linux servers, k8s containers, and local unit tests. The meaning is
+    still host-style monitoring:
+      cpu_percent    -> CPU utilisation sample
+      memory_percent -> used memory percentage
+      zombie count   -> processes stuck in Z state
+        E.g. 1 (systemd) S 0 1 1 0
+    """
     zombie_count = 0
 
     for process in psutil.process_iter(["status"]):
@@ -189,14 +279,23 @@ def collect_resource_status() -> dict[str, Any]:
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 
-    return {
-        "cpu_percent": psutil.cpu_percent(interval=1),
-        "memory_percent": psutil.virtual_memory().percent,
-        "zombie_process_count": zombie_count,
-    }
+    return ResourceStatus(
+        cpu_percent=round(float(psutil.cpu_percent(interval=1)), 2),
+        memory_percent=round(float(psutil.virtual_memory().percent), 2),
+        zombie_process_count=zombie_count,
+    )
 
+
+# ---------------------------------------------------------------------------
+# Network diagnostics
+# ---------------------------------------------------------------------------
 
 def check_dns(target: DnsTarget) -> CheckOutcome:
+    """Resolve a DNS target and classify socket failures for alert context.
+
+    We keep DNS as its own check because a failed service can be caused by
+    name resolution even when TCP and the application are healthy.
+    """
     start_time = time.monotonic()
 
     try:
@@ -212,21 +311,66 @@ def check_dns(target: DnsTarget) -> CheckOutcome:
 
 
 def check_tcp(target: TcpTarget) -> CheckOutcome:
+    """Attempt a TCP connection and return a classified result.
+
+    Steps:
+      1. Resolve host with getaddrinfo() so DNS errors are explicit.
+      2. Try each returned address until one TCP connect succeeds.
+      3. Report the last useful failure type if all addresses fail.
+
+    This mirrors the manual troubleshooting flow:
+      nslookup service.example.com
+      nc -vz service.example.com 443
+    """
     start_time = time.monotonic()
 
     try:
-        with socket.create_connection((target.host, target.port), timeout=target.timeout_seconds):
-            latency_ms = round((time.monotonic() - start_time) * 1000, 2)
-            return CheckOutcome(True, None, "connected", latency_ms)
-    except socket.timeout as ex:
+        addresses = socket.getaddrinfo(
+            target.host,
+            target.port,
+            type=socket.SOCK_STREAM,
+            proto=socket.IPPROTO_TCP,
+        )
+    except socket.gaierror as ex:
         latency_ms = round((time.monotonic() - start_time) * 1000, 2)
-        return CheckOutcome(False, "tcp_connection_timeout", str(ex), latency_ms)
-    except ConnectionRefusedError as ex:
-        latency_ms = round((time.monotonic() - start_time) * 1000, 2)
-        return CheckOutcome(False, "tcp_connection_refused", str(ex), latency_ms)
+        return CheckOutcome(False, "dns_resolution_error", str(ex), latency_ms)
     except OSError as ex:
         latency_ms = round((time.monotonic() - start_time) * 1000, 2)
         return CheckOutcome(False, "tcp_connection_error", str(ex), latency_ms)
+
+    last_error: Exception | None = None
+
+    for family, socktype, proto, _, sockaddr in addresses:
+        sock = socket.socket(family, socktype, proto)
+        sock.settimeout(target.timeout_seconds)
+
+        try:
+            sock.connect(sockaddr)
+            latency_ms = round((time.monotonic() - start_time) * 1000, 2)
+            return CheckOutcome(True, None, "connected", latency_ms)
+        except socket.timeout as ex:
+            last_error = ex
+        except ConnectionRefusedError as ex:
+            latency_ms = round((time.monotonic() - start_time) * 1000, 2)
+            return CheckOutcome(False, "tcp_connection_refused", str(ex), latency_ms)
+        except OSError as ex:
+            last_error = ex
+        finally:
+            sock.close()
+
+    latency_ms = round((time.monotonic() - start_time) * 1000, 2)
+    failure_type = (
+        "tcp_connection_timeout"
+        if isinstance(last_error, socket.timeout)
+        else "tcp_connection_error"
+    )
+
+    return CheckOutcome(
+        False,
+        failure_type,
+        str(last_error) if last_error else "no address succeeded",
+        latency_ms,
+    )
 
 
 def run_with_retry(
@@ -235,6 +379,11 @@ def run_with_retry(
     retry_delay_seconds: float,
     check_func: Callable[[], CheckOutcome],
 ) -> tuple[CheckOutcome, int]:
+    """Run one check with retry and log failed attempts as operational clues.
+
+    retry_count means "extra attempts after the first try".
+      retry_count=2 -> attempt 1 + retry 1 + retry 2 = 3 total attempts
+    """
     last_outcome = CheckOutcome(False, "not_checked", "not_checked", None)
 
     for attempt in range(1, retry_count + 2):
@@ -258,19 +407,39 @@ def run_with_retry(
     return last_outcome, retry_count + 1
 
 
+# ---------------------------------------------------------------------------
+# Main collection cycle
+# ---------------------------------------------------------------------------
+
 def run_check_cycle(config: AgentConfig) -> None:
+    """Execute one full collection cycle.
+
+    Cycle order is deliberate:
+      1. Collect local resource metrics.
+      2. Publish gauges before network checks.
+      3. Run DNS checks.
+      4. Run TCP checks.
+
+    That order gives Prometheus a fresh local baseline even if a later network
+    target is slow or failing.
+    """
     resources = collect_resource_status()
-    RESOURCE_CPU_PERCENT.set(resources["cpu_percent"])
-    RESOURCE_MEMORY_PERCENT.set(resources["memory_percent"])
-    RESOURCE_ZOMBIE_PROCESSES.set(resources["zombie_process_count"])
+    RESOURCE_CPU_PERCENT.set(resources.cpu_percent)
+    RESOURCE_MEMORY_PERCENT.set(resources.memory_percent)
+    RESOURCE_ZOMBIE_PROCESSES.set(resources.zombie_process_count)
 
     write_log(
         logging.INFO,
         "metrics_collected",
-        cpu_percent=round(float(resources["cpu_percent"]), 2),
-        memory_percent=round(float(resources["memory_percent"]), 2),
-        zombie_process_count=resources["zombie_process_count"],
+        **asdict(resources),
     )
+
+    if resources.zombie_process_count:
+        write_log(
+            logging.WARNING,
+            "zombie_processes_found",
+            zombie_process_count=resources.zombie_process_count,
+        )
 
     for target in config.dns_targets:
         check_name = f"dns:{target.name}"
@@ -301,6 +470,7 @@ def log_check_result(
     outcome: CheckOutcome,
     attempts: int,
 ) -> None:
+    """Update Prometheus gauges and emit one JSON log per completed check."""
     status = "ok" if outcome.ok else "failed"
     level = logging.INFO if outcome.ok else logging.ERROR
     port_label = str(port or "")
@@ -328,6 +498,10 @@ def log_check_result(
     )
 
 
+# ---------------------------------------------------------------------------
+# Failure-state tracking
+# ---------------------------------------------------------------------------
+
 def update_failure_metric(
     check_type: str,
     name: str,
@@ -335,6 +509,12 @@ def update_failure_metric(
     port_label: str,
     outcome: CheckOutcome,
 ) -> None:
+    """Track the latest failure type per target.
+
+    Prometheus gauges are sticky until explicitly changed. If a target changes
+    from timeout -> refused -> ok, the previous failure label must be reset or
+    Grafana will show stale failure states.
+    """
     check_key = (check_type, name, host, port_label)
     previous_failure_type = LAST_NETWORK_FAILURE_TYPES.pop(check_key, None)
 
@@ -350,8 +530,16 @@ def update_failure_metric(
     LAST_NETWORK_FAILURE_TYPES[check_key] = outcome.failure_type
 
 
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run the IaC lab monitoring agent.")
+    """Define CLI flags used by containers, systemd, and smoke tests."""
+    parser = argparse.ArgumentParser(
+        description="Run the IaC lab monitoring agent.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument("--config", default=DEFAULT_CONFIG_PATH, help="Path to YAML config file.")
     parser.add_argument("--log-file", default=None, help="Override log file path from config.")
     parser.add_argument("--interval", type=int, default=None, help="Override interval seconds from config.")
@@ -361,20 +549,29 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def apply_cli_overrides(config: AgentConfig, args: argparse.Namespace) -> AgentConfig:
+    """Keep YAML as the default source of truth, then apply smoke-test overrides."""
+    if args.log_file:
+        config.log_file = args.log_file
+    if args.interval:
+        config.interval_seconds = args.interval
+    if args.metrics_port:
+        config.metrics_port = args.metrics_port
+    if args.disable_metrics:
+        config.metrics_enabled = False
+    return config
+
+
 def main() -> int:
+    """Entry point.
+
+    Example:
+      python3 agent.py --config /etc/monitor-agent/config.yml --once
+    """
     args = parse_args()
 
     try:
-        config = load_config(args.config)
-        if args.log_file:
-            config.log_file = args.log_file
-        if args.interval:
-            config.interval_seconds = args.interval
-        if args.metrics_port:
-            config.metrics_port = args.metrics_port
-        if args.disable_metrics:
-            config.metrics_enabled = False
-
+        config = apply_cli_overrides(load_config(args.config), args)
         configure_logging(config.log_file)
         write_log(
             logging.INFO,
@@ -382,8 +579,8 @@ def main() -> int:
             config=args.config,
             interval_seconds=config.interval_seconds,
             metrics_enabled=config.metrics_enabled,
-            dns_targets=[target.__dict__ for target in config.dns_targets],
-            tcp_targets=[target.__dict__ for target in config.tcp_targets],
+            dns_targets=[asdict(target) for target in config.dns_targets],
+            tcp_targets=[asdict(target) for target in config.tcp_targets],
         )
         start_metrics_endpoint(config)
 
