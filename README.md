@@ -134,7 +134,7 @@ make k8s-verify
 
 完整 k8s 部署完全由 Terraform 驅動 — `infra/k8s/terraform` 內的 `helm_release`、`kubernetes_namespace`、`kubernetes_secret`、`kubernetes_config_map` 一次帶起 k3d cluster、kube-prometheus-stack、monitor-agent DaemonSet / ServiceMonitor / PrometheusRule。
 
-- Grafana: <http://localhost:3000>（admin / admin）
+- Grafana: <http://localhost:3000>
 - Prometheus: <http://localhost:9090>
 - Alertmanager: <http://localhost:9093>
 
