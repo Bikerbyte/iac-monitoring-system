@@ -17,13 +17,12 @@ ansible_user         = "ubuntu"
 ssh_public_key_file  = "~/.ssh/id_rsa.pub"
 ssh_private_key_file = "~/.ssh/id_rsa"
 
-# Use your own VPC/subnet. The values below came from the default VPC used in
-# the first AWS smoke test for this lab.
-aws_vpc_id    = "vpc-0ded4d396050e8f97"
-aws_subnet_id = "subnet-0f78ad2fac57a4d7f"
+# Replace these with your own VPC/subnet before applying.
+aws_vpc_id    = "vpc-xxxxxxxxxxxxxxxxx"
+aws_subnet_id = "subnet-xxxxxxxxxxxxxxxxx"
 
 # Replace with your current public IP before applying.
 # Example:
 #   curl -fsS https://checkip.amazonaws.com
-allowed_ssh_cidr_blocks        = ["180.177.202.27/32"]
-allowed_monitoring_cidr_blocks = ["180.177.202.27/32"] # Grafana 3000, agent 8000, Prometheus 9090, Alertmanager 9093, Node Exporter 9100
+allowed_ssh_cidr_blocks        = ["203.0.113.10/32"]
+allowed_monitoring_cidr_blocks = ["203.0.113.10/32"] # Grafana 3000, agent 8000, Prometheus 9090, Alertmanager 9093, Node Exporter 9100

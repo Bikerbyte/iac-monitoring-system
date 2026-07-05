@@ -184,5 +184,4 @@ HighLoadAverage     load5 > CPU 核心數 for 5m
 ## 文件
 
 - [docs/system-usage.zh-TW.md](docs/system-usage.zh-TW.md) — 完整部署、debug、alert 測試流程
-- [docs/project-study-guide.zh-TW.md](docs/project-study-guide.zh-TW.md) — 專案元件、Kubernetes/VM mode、Terraform/Ansible 觀念整理
 - [runbooks/](runbooks/) — 6 篇 incident runbook

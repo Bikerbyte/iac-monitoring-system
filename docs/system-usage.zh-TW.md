@@ -78,8 +78,8 @@ ansible_user         = "ubuntu"
 ssh_public_key_file  = "~/.ssh/id_rsa.pub"
 ssh_private_key_file = "~/.ssh/id_rsa"
 
-aws_vpc_id    = "vpc-0ded4d396050e8f97"
-aws_subnet_id = "subnet-0f78ad2fac57a4d7f"
+aws_vpc_id    = "vpc-xxxxxxxxxxxxxxxxx"
+aws_subnet_id = "subnet-xxxxxxxxxxxxxxxxx"
 
 allowed_ssh_cidr_blocks        = ["你的-public-ip/32"]
 allowed_monitoring_cidr_blocks = ["你的-public-ip/32"]
