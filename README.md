@@ -165,8 +165,7 @@ VM mode 走 Terraform + Ansible，分既有 Linux server 與 AWS EC2 兩條路�
 | 既有 Linux server | `make vm-apply` | `make vm-up ANSIBLE_FLAGS="--ask-become-pass"` | `make vm-smoke` |
 | AWS EC2 | `make vm-aws-apply` | `make vm-aws-deploy ANSIBLE_FLAGS="--ask-become-pass"` | `make vm-smoke` / `make vm-aws-destroy` |
 
-兩條路徑的 `terraform.tfvars` 範本與逐步驟（含 inventory 產生、debug、alert 測試）見
-[docs/system-usage.zh-TW.md](docs/system-usage.zh-TW.md)。
+Terraform examples 於 `infra/vm/terraform/*.example`
 
 ## Alert rules
 
@@ -181,7 +180,6 @@ HighLoadAverage     load5 > CPU 核心數 for 5m
 - VM mode：`ansible/files/prometheus/rules/linux-alerts.yml`
 - k8s mode：`k8s/manifests/prometheusrule.yaml`（PrometheusRule CRD）
 
-## 文件
+## Runbooks
 
-- [docs/system-usage.zh-TW.md](docs/system-usage.zh-TW.md) — 完整部署、debug、alert 測試流程
-- [runbooks/](runbooks/) — 6 篇 incident runbook
+- [runbooks/](runbooks/) — 6 種 incident runbook
